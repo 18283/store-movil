@@ -53,6 +53,8 @@ class _CheckoutPageState extends State<CheckoutPage> with WidgetsBindingObserver
     super.dispose();
   }
 
+///se verifica el estado del pago al volver de la pestaña de pago (custom tab) para mostrar la confirmacion en la app
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state != AppLifecycleState.resumed) return;
@@ -128,6 +130,8 @@ class _CheckoutPageState extends State<CheckoutPage> with WidgetsBindingObserver
       });
     }
   }
+
+///pantalla de pago con qr y boton para ir a pagar con stripe
 
   Future<void> _irAPagar() async {
     final url = _pago?.checkoutUrl;

@@ -6,6 +6,7 @@ import 'package:google_mlkit_pose_detection/google_mlkit_pose_detection.dart';
 import 'package:image_picker/image_picker.dart';
 
 import 'prenda_ar.dart';
+import 'vestidor_camara_page.dart';
 
 /// CU20 — Vestidor virtual (modo foto): el cliente toma o elige una foto, ML
 /// Kit detecta los hombros y la prenda elegida se coloca encima. El cliente
@@ -231,8 +232,8 @@ class _VestidorPruebaPageState extends State<VestidorPruebaPage> {
           padding: const EdgeInsets.all(16),
           children: [
             const Text(
-              'Sácate una foto de frente, con los hombros y el torso visibles, '
-              'y prueba cómo te queda cada prenda.',
+              'Prueba la cámara en vivo o elige una foto de tu galería. '
+              'Mantén ambos hombros y el torso visibles.',
             ),
             const SizedBox(height: 12),
             Row(
@@ -241,9 +242,12 @@ class _VestidorPruebaPageState extends State<VestidorPruebaPage> {
                   child: FilledButton.icon(
                     onPressed: _procesando
                         ? null
-                        : () => _elegir(ImageSource.camera),
+                        : () => Navigator.of(context).push(MaterialPageRoute(
+                            builder: (_) => VestidorCamaraPage(
+                              prendas: _prendas, inicial: _prenda),
+                          )),
                     icon: const Icon(Icons.photo_camera_outlined),
-                    label: const Text('Tomar foto'),
+                    label: const Text('Cámara en vivo'),
                   ),
                 ),
                 const SizedBox(width: 12),

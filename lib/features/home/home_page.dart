@@ -9,6 +9,8 @@ import '../catalogo/catalogo_page.dart';
 import '../catalogo/tienda_service.dart';
 import '../ia/asistente_page.dart';
 import '../ia/ia_service.dart';
+import '../../core/offline/offline_service.dart';
+import '../offline/offline_catalog_page.dart';
 import '../reservas/mi_reserva_page.dart';
 import '../reservas/mis_reservas_page.dart';
 import '../reservas/reserva_bolsa_service.dart';
@@ -24,6 +26,7 @@ enum _MenuCuenta {
   compras,
   asistente,
   vestidorPrueba,
+  catalogoOffline,
   salir,
 }
 
@@ -86,6 +89,26 @@ class _HomePageState extends State<HomePage> {
         Navigator.of(
           context,
         ).push(MaterialPageRoute(builder: (_) => const VestidorPruebaPage()));
+        break;
+      case _MenuCuenta.catalogoOffline:
+        final empresaId = auth.usuario?.empresaId;
+        if (empresaId == null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('El usuario no está asociado a una empresa.'),
+            ),
+          );
+          break;
+        }
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => OfflineCatalogPage(
+              service: OfflineService(auth.api),
+              empresaId: empresaId,
+              sucursalInicialId: auth.usuario?.sucursalId,
+            ),
+          ),
+        );
         break;
       case _MenuCuenta.salir:
         context.read<CarritoService>().limpiarLocal();
@@ -158,6 +181,13 @@ class _HomePageState extends State<HomePage> {
                 child: ListTile(
                   leading: Icon(Icons.smart_toy_outlined),
                   title: Text('Asistente virtual'),
+                ),
+              ),
+              const PopupMenuItem(
+                value: _MenuCuenta.catalogoOffline,
+                child: ListTile(
+                  leading: Icon(Icons.offline_pin_outlined),
+                  title: Text('Catálogo sin conexión'),
                 ),
               ),
               const PopupMenuItem(

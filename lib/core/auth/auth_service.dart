@@ -1,7 +1,10 @@
+import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
 
 import '../models/usuario.dart';
 import '../network/api_client.dart';
+import '../network/api_exception.dart';
 import 'token_storage.dart';
 
 /// Estado de sesión de la app: token + usuario actual.
@@ -24,8 +27,18 @@ class AuthService extends ChangeNotifier {
       final token = await _tokenStorage.leer();
       if (token != null) {
         _token = token;
-        final data = await api.get('/auth/me');
-        _usuario = Usuario.fromJson(data as Map<String, dynamic>);
+        final usuarioLocal = await _leerUsuarioLocal();
+        try {
+          final data = await api.get('/auth/me');
+          _usuario = Usuario.fromJson(data as Map<String, dynamic>);
+          await _guardarUsuarioLocal();
+        } on ApiException catch (error) {
+          if (error.statusCode == null && usuarioLocal != null) {
+            _usuario = usuarioLocal;
+          } else {
+            rethrow;
+          }
+        }
       }
     } catch (_) {
       // Sin almacenamiento seguro disponible, o token vencido/inválido:
@@ -46,34 +59,41 @@ class AuthService extends ChangeNotifier {
     required String password,
     String? telefono,
   }) async {
-    final data = await api.post(
-      '/auth/registro',
-      auth: false,
-      body: {
-        'nombre': nombre,
-        'apellido': apellido,
-        'email': email,
-        'password': password,
-        if (telefono != null && telefono.isNotEmpty) 'telefono': telefono,
-      },
-    ) as Map<String, dynamic>;
+    final data =
+        await api.post(
+              '/auth/registro',
+              auth: false,
+              body: {
+                'nombre': nombre,
+                'apellido': apellido,
+                'email': email,
+                'password': password,
+                if (telefono != null && telefono.isNotEmpty)
+                  'telefono': telefono,
+              },
+            )
+            as Map<String, dynamic>;
 
     _token = data['access_token'] as String;
     _usuario = Usuario.fromJson(data['usuario'] as Map<String, dynamic>);
     await _tokenStorage.guardar(_token!);
+    await _guardarUsuarioLocal();
     notifyListeners();
   }
 
   /// CU2 — login.
   Future<void> login({required String email, required String password}) async {
-    final data = await api.postForm('/auth/login', {
-      'username': email,
-      'password': password,
-    }) as Map<String, dynamic>;
+    final data =
+        await api.postForm('/auth/login', {
+              'username': email,
+              'password': password,
+            })
+            as Map<String, dynamic>;
 
     _token = data['access_token'] as String;
     _usuario = Usuario.fromJson(data['usuario'] as Map<String, dynamic>);
     await _tokenStorage.guardar(_token!);
+    await _guardarUsuarioLocal();
     notifyListeners();
   }
 
@@ -83,16 +103,19 @@ class AuthService extends ChangeNotifier {
     String? apellido,
     String? telefono,
   }) async {
-    final data = await api.patch(
-      '/auth/me',
-      body: {
-        if (nombre != null) 'nombre': nombre,
-        if (apellido != null) 'apellido': apellido,
-        if (telefono != null) 'telefono': telefono,
-      },
-    ) as Map<String, dynamic>;
+    final data =
+        await api.patch(
+              '/auth/me',
+              body: {
+                if (nombre != null) 'nombre': nombre,
+                if (apellido != null) 'apellido': apellido,
+                if (telefono != null) 'telefono': telefono,
+              },
+            )
+            as Map<String, dynamic>;
 
     _usuario = Usuario.fromJson(data);
+    await _guardarUsuarioLocal();
     notifyListeners();
   }
 
@@ -112,5 +135,22 @@ class AuthService extends ChangeNotifier {
     _usuario = null;
     await _tokenStorage.borrar();
     notifyListeners();
+  }
+
+  Future<void> _guardarUsuarioLocal() async {
+    final usuario = _usuario;
+    if (usuario != null) {
+      await _tokenStorage.guardarUsuario(jsonEncode(usuario.toJson()));
+    }
+  }
+
+  Future<Usuario?> _leerUsuarioLocal() async {
+    final value = await _tokenStorage.leerUsuario();
+    if (value == null) return null;
+    try {
+      return Usuario.fromJson(jsonDecode(value) as Map<String, dynamic>);
+    } catch (_) {
+      return null;
+    }
   }
 }
