@@ -13,8 +13,9 @@ class OfflineDatabase {
     final ruta = p.join(await getDatabasesPath(), 'fashionstore_offline.db');
     _db = await openDatabase(
       ruta,
-      version: 1,
-      onCreate: (db, _) => db.execute('''
+      version: 2,
+      onCreate: (db, _) async {
+        await db.execute('''
         CREATE TABLE catalogo_snapshot (
           clave TEXT PRIMARY KEY,
           empresa_id INTEGER NOT NULL,
@@ -23,10 +24,73 @@ class OfflineDatabase {
           version_datos TEXT NOT NULL,
           payload TEXT NOT NULL
         )
-      '''),
+      ''');
+        await db.execute(_crearTablaOperaciones);
+      },
+      onUpgrade: (db, oldVersion, newVersion) async {
+        if (oldVersion < 2) {
+          await db.execute(_crearTablaOperaciones);
+        }
+      },
     );
     return _db!;
   }
+
+  static const _crearTablaOperaciones = '''
+    CREATE TABLE operacion_pendiente (
+      clave_idempotencia TEXT PRIMARY KEY,
+      tipo TEXT NOT NULL,
+      estado TEXT NOT NULL,
+      creado_en_dispositivo TEXT NOT NULL,
+      resumen TEXT NOT NULL,
+      payload TEXT NOT NULL,
+      motivo_rechazo TEXT,
+      reserva_id INTEGER,
+      venta_id INTEGER
+    )
+  ''';
+
+  // ------------------------------------------------------------------------- #
+  //  CU11/CU12/CU13/CU14/CU15 — Cola de operaciones pendientes
+  // ------------------------------------------------------------------------- #
+  Future<void> guardarOperacion(OperacionPendiente op) async {
+    final db = await _database();
+    await db.insert('operacion_pendiente', {
+      'clave_idempotencia': op.claveIdempotencia,
+      'tipo': op.tipo,
+      'estado': op.estado.name,
+      'creado_en_dispositivo': op.creadoEnDispositivo.toIso8601String(),
+      'resumen': op.resumen,
+      'payload': jsonEncode(op.payload),
+      'motivo_rechazo': op.motivoRechazo,
+      'reserva_id': op.reservaId,
+      'venta_id': op.ventaId,
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  Future<List<OperacionPendiente>> listarOperaciones() async {
+    final db = await _database();
+    final filas = await db.query(
+      'operacion_pendiente',
+      orderBy: 'creado_en_dispositivo DESC',
+    );
+    return filas.map(_operacionDesdeFila).toList();
+  }
+
+  OperacionPendiente _operacionDesdeFila(Map<String, Object?> fila) =>
+      OperacionPendiente(
+        claveIdempotencia: fila['clave_idempotencia']! as String,
+        tipo: fila['tipo']! as String,
+        estado: estadoOperacionDesdeTexto(fila['estado']! as String),
+        creadoEnDispositivo: DateTime.parse(
+          fila['creado_en_dispositivo']! as String,
+        ),
+        resumen: fila['resumen']! as String,
+        payload: jsonDecode(fila['payload']! as String) as Map<String, dynamic>,
+        motivoRechazo: fila['motivo_rechazo'] as String?,
+        reservaId: fila['reserva_id'] as int?,
+        ventaId: fila['venta_id'] as int?,
+      );
 
   Future<DatosOffline> guardar(Map<String, dynamic> payload) async {
     final validado = DatosOffline.fromJson(payload);

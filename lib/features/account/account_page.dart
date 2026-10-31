@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/auth/auth_service.dart';
 import '../../core/network/api_exception.dart';
+import '../../core/offline/tarjeta_service.dart';
 
 /// CU2 — Mi cuenta: editar datos propios y cambiar contraseña.
+/// También CU12/CU14 — tarjeta guardada, para comprar sin conexión.
 class AccountPage extends StatefulWidget {
   const AccountPage({super.key});
 
@@ -12,7 +15,7 @@ class AccountPage extends StatefulWidget {
   State<AccountPage> createState() => _AccountPageState();
 }
 
-class _AccountPageState extends State<AccountPage> {
+class _AccountPageState extends State<AccountPage> with WidgetsBindingObserver {
   final _datosFormKey = GlobalKey<FormState>();
   final _passwordFormKey = GlobalKey<FormState>();
 
@@ -27,17 +30,34 @@ class _AccountPageState extends State<AccountPage> {
   bool _guardandoDatos = false;
   bool _cambiandoPassword = false;
 
+  late final TarjetaService _tarjetaService;
+  bool _esCliente = false;
+  bool _tieneTarjeta = false;
+  bool _cargandoTarjeta = true;
+  bool _procesandoTarjeta = false;
+  bool _esperandoVueltaDeStripe = false;
+
   @override
   void initState() {
     super.initState();
-    final usuario = context.read<AuthService>().usuario!;
+    WidgetsBinding.instance.addObserver(this);
+    final auth = context.read<AuthService>();
+    final usuario = auth.usuario!;
     _nombreCtrl = TextEditingController(text: usuario.nombre);
     _apellidoCtrl = TextEditingController(text: usuario.apellido);
     _telefonoCtrl = TextEditingController(text: usuario.telefono ?? '');
+    _esCliente = usuario.rol == 'Cliente';
+    _tarjetaService = TarjetaService(auth.api);
+    if (_esCliente) {
+      _cargarEstadoTarjeta();
+    } else {
+      _cargandoTarjeta = false;
+    }
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _nombreCtrl.dispose();
     _apellidoCtrl.dispose();
     _telefonoCtrl.dispose();
@@ -45,6 +65,68 @@ class _AccountPageState extends State<AccountPage> {
     _passwordNuevaCtrl.dispose();
     _passwordConfirmarCtrl.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed || !_esperandoVueltaDeStripe) return;
+    _esperandoVueltaDeStripe = false;
+    _confirmarTarjetaAlVolver();
+  }
+
+  Future<void> _cargarEstadoTarjeta() async {
+    setState(() => _cargandoTarjeta = true);
+    try {
+      final estado = await _tarjetaService.estado();
+      if (mounted) setState(() => _tieneTarjeta = estado.tieneTarjetaGuardada);
+    } catch (_) {
+      // Sin conexión: no es bloqueante acá, se reintenta más tarde.
+    } finally {
+      if (mounted) setState(() => _cargandoTarjeta = false);
+    }
+  }
+
+  Future<void> _guardarTarjeta() async {
+    setState(() => _procesandoTarjeta = true);
+    try {
+      final url = await _tarjetaService.iniciarGuardado();
+      _esperandoVueltaDeStripe = true;
+      await launchUrl(Uri.parse(url), mode: LaunchMode.inAppBrowserView);
+    } catch (_) {
+      _mostrarMensaje('No se pudo iniciar el guardado de la tarjeta.');
+    } finally {
+      if (mounted) setState(() => _procesandoTarjeta = false);
+    }
+  }
+
+  Future<void> _confirmarTarjetaAlVolver() async {
+    setState(() => _procesandoTarjeta = true);
+    try {
+      final estado = await _tarjetaService.confirmar();
+      if (mounted) setState(() => _tieneTarjeta = estado.tieneTarjetaGuardada);
+      _mostrarMensaje(
+        estado.tieneTarjetaGuardada
+            ? 'Tarjeta guardada correctamente.'
+            : 'Todavía no se confirmó el guardado de la tarjeta.',
+      );
+    } catch (_) {
+      _mostrarMensaje('No se pudo confirmar la tarjeta.');
+    } finally {
+      if (mounted) setState(() => _procesandoTarjeta = false);
+    }
+  }
+
+  Future<void> _eliminarTarjeta() async {
+    setState(() => _procesandoTarjeta = true);
+    try {
+      final estado = await _tarjetaService.eliminar();
+      if (mounted) setState(() => _tieneTarjeta = estado.tieneTarjetaGuardada);
+      _mostrarMensaje('Tarjeta eliminada.');
+    } catch (_) {
+      _mostrarMensaje('No se pudo eliminar la tarjeta.');
+    } finally {
+      if (mounted) setState(() => _procesandoTarjeta = false);
+    }
   }
 
   void _mostrarMensaje(String mensaje) {
@@ -148,6 +230,56 @@ class _AccountPageState extends State<AccountPage> {
                 ],
               ),
             ),
+            if (_esCliente) ...[
+              const SizedBox(height: 32),
+              const Divider(),
+              const SizedBox(height: 16),
+              Text(
+                'Tarjeta guardada',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Necesaria para comprar sin conexión (CU12): se cobra sola apenas vuelve internet.',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              const SizedBox(height: 12),
+              if (_cargandoTarjeta)
+                const Center(child: CircularProgressIndicator())
+              else if (_tieneTarjeta) ...[
+                const Row(
+                  children: [
+                    Icon(Icons.credit_card),
+                    SizedBox(width: 8),
+                    Text('Tenés una tarjeta guardada.'),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                OutlinedButton(
+                  onPressed: _procesandoTarjeta ? null : _eliminarTarjeta,
+                  child: const Text('Quitar tarjeta'),
+                ),
+              ] else ...[
+                const Row(
+                  children: [
+                    Icon(Icons.credit_card_off),
+                    SizedBox(width: 8),
+                    Expanded(child: Text('Todavía no guardaste ninguna tarjeta.')),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                FilledButton(
+                  onPressed: _procesandoTarjeta ? null : _guardarTarjeta,
+                  child: _procesandoTarjeta
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Guardar tarjeta'),
+                ),
+              ],
+            ],
             const SizedBox(height: 32),
             const Divider(),
             const SizedBox(height: 16),

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1067257958892",
+    "project_id": "fashionstore-grupo25",
+    "storage_bucket": "fashionstore-grupo25.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1067257958892:android:85dc58baec650bb2fe30c9",
+        "android_client_info": {
+          "package_name": "com.grupo44.fashionstore.store_movil"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBkWEAZFWf5MBDo3PIJoxDb3qVl3AMPaxU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

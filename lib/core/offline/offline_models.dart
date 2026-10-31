@@ -131,6 +131,82 @@ class VarianteOfflineVista {
   const VarianteOfflineVista(this.producto, this.variante);
 }
 
+// --------------------------------------------------------------------------- #
+//  CU11/CU12/CU13/CU14/CU15 — Cola de operaciones registradas sin conexión
+// --------------------------------------------------------------------------- #
+class ItemOfflineDto {
+  final int varianteId;
+  final int cantidad;
+  const ItemOfflineDto(this.varianteId, this.cantidad);
+
+  Map<String, dynamic> toJson() => {
+    'variante_id': varianteId,
+    'cantidad': cantidad,
+  };
+}
+
+enum EstadoOperacionLocal { local, enviando, confirmado, rechazado }
+
+EstadoOperacionLocal estadoOperacionDesdeTexto(String texto) =>
+    EstadoOperacionLocal.values.firstWhere(
+      (e) => e.name == texto,
+      orElse: () => EstadoOperacionLocal.local,
+    );
+
+class OperacionPendiente {
+  final String claveIdempotencia;
+  final String tipo; // RESERVA | VENTA
+  final EstadoOperacionLocal estado;
+  final DateTime creadoEnDispositivo;
+  final String resumen;
+  final Map<String, dynamic> payload;
+  final String? motivoRechazo;
+  final int? reservaId;
+  final int? ventaId;
+
+  const OperacionPendiente({
+    required this.claveIdempotencia,
+    required this.tipo,
+    required this.estado,
+    required this.creadoEnDispositivo,
+    required this.resumen,
+    required this.payload,
+    this.motivoRechazo,
+    this.reservaId,
+    this.ventaId,
+  });
+
+  OperacionPendiente copyWith({
+    EstadoOperacionLocal? estado,
+    String? motivoRechazo,
+    int? reservaId,
+    int? ventaId,
+  }) => OperacionPendiente(
+    claveIdempotencia: claveIdempotencia,
+    tipo: tipo,
+    estado: estado ?? this.estado,
+    creadoEnDispositivo: creadoEnDispositivo,
+    resumen: resumen,
+    payload: payload,
+    motivoRechazo: motivoRechazo ?? this.motivoRechazo,
+    reservaId: reservaId ?? this.reservaId,
+    ventaId: ventaId ?? this.ventaId,
+  );
+
+  String get etiquetaEstado {
+    switch (estado) {
+      case EstadoOperacionLocal.local:
+        return 'Pendiente de enviar';
+      case EstadoOperacionLocal.enviando:
+        return 'Sincronizando…';
+      case EstadoOperacionLocal.confirmado:
+        return 'Confirmada';
+      case EstadoOperacionLocal.rechazado:
+        return motivoRechazo ?? 'Rechazada';
+    }
+  }
+}
+
 List<VarianteOfflineVista> filtrarDatosOffline(
   DatosOffline? datos, {
   String busqueda = '',

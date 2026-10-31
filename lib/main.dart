@@ -1,13 +1,32 @@
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import 'core/app_keys.dart';
 import 'core/auth/auth_service.dart';
+import 'core/offline/push_service.dart';
 import 'features/auth/login_page.dart';
 import 'features/carrito/carrito_service.dart';
 import 'features/home/home_page.dart';
 import 'features/reservas/reserva_bolsa_service.dart';
 
-void main() {
+// CU14/CU15 — FCM necesita este handler top-level (fuera de cualquier clase)
+// para procesar push mientras la app está en segundo plano o cerrada. Como
+// ya se manda el payload "notification", Android la muestra solo: acá no
+// hace falta hacer nada más.
+@pragma('vm:entry-point')
+Future<void> _manejarPushEnSegundoPlano(RemoteMessage message) async {}
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  try {
+    await Firebase.initializeApp();
+    FirebaseMessaging.onBackgroundMessage(_manejarPushEnSegundoPlano);
+  } catch (_) {
+    // Sin Google Play Services o sin configurar: la app sigue andando,
+    // simplemente no habrá notificaciones push.
+  }
   runApp(const FashionStoreApp());
 }
 
@@ -26,10 +45,14 @@ class FashionStoreApp extends StatelessWidget {
           create: (context) => CarritoService(context.read<AuthService>().api),
           update: (context, auth, previo) => previo ?? CarritoService(auth.api),
         ),
+        Provider<PushService>(
+          create: (context) => PushService(context.read<AuthService>().api),
+        ),
       ],
       child: MaterialApp(
         title: 'FashionStore',
         debugShowCheckedModeBanner: false,
+        scaffoldMessengerKey: rootScaffoldMessengerKey,
         theme: ThemeData(
           colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF2E7D32)),
           useMaterial3: true,

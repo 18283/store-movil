@@ -10,6 +10,9 @@ import '../catalogo/tienda_service.dart';
 import '../ia/asistente_page.dart';
 import '../ia/ia_service.dart';
 import '../../core/offline/offline_service.dart';
+import '../../core/offline/offline_sync_service.dart';
+import '../../core/offline/push_service.dart';
+import '../../core/offline/tarjeta_service.dart';
 import '../offline/offline_catalog_page.dart';
 import '../reservas/mi_reserva_page.dart';
 import '../reservas/mis_reservas_page.dart';
@@ -104,8 +107,12 @@ class _HomePageState extends State<HomePage> {
           MaterialPageRoute(
             builder: (_) => OfflineCatalogPage(
               service: OfflineService(auth.api),
+              syncService: OfflineSyncService(auth.api),
+              tarjetaService: TarjetaService(auth.api),
+              pushService: context.read<PushService>(),
               empresaId: empresaId,
               sucursalInicialId: auth.usuario?.sucursalId,
+              esCliente: auth.usuario?.rol == 'Cliente',
             ),
           ),
         );
