@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/models/catalogo.dart';
 import '../../core/models/venta.dart';
+import '../../core/network/api_exception.dart';
 import '../catalogo/tienda_service.dart';
 import 'cambios_service.dart';
 
@@ -81,7 +82,9 @@ class _SolicitarCambioSheetState extends State<SolicitarCambioSheet> {
         cantidad: _cantidad,
       );
       if (mounted) Navigator.of(context).pop(solicitud);
-    } catch (e) {
+    } on ApiException catch (e) {
+      if (mounted) setState(() => _error = e.message);
+    } catch (_) {
       if (mounted) {
         setState(() => _error = 'No se pudo crear la solicitud.');
       }
