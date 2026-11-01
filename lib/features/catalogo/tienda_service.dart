@@ -1,7 +1,9 @@
 import '../../core/models/catalogo.dart';
 import '../../core/network/api_client.dart';
 
-/// CU9/CU10/CU12 — catálogo público, sin login (`/catalogo/...`).
+/// CU9/CU10/CU12 — catálogo (`/catalogo/...`). No exige login (un visitante
+/// ve la tienda principal), pero si hay sesión manda el token para que el
+/// backend muestre el catálogo de la empresa del usuario logueado.
 class TiendaService {
   final ApiClient _api;
 
@@ -17,26 +19,23 @@ class TiendaService {
   }
 
   Future<List<Categoria>> categorias() async {
-    final data = await _api.get('/catalogo/categorias', auth: false) as List;
+    final data = await _api.get('/catalogo/categorias') as List;
     return data.map((e) => Categoria.fromJson(e)).toList();
   }
 
   Future<List<Talla>> tallas() async {
-    final data = await _api.get('/catalogo/tallas', auth: false) as List;
+    final data = await _api.get('/catalogo/tallas') as List;
     return data.map((e) => Talla.fromJson(e)).toList();
   }
 
   Future<List<ColorCatalogo>> colores() async {
-    final data = await _api.get('/catalogo/colores', auth: false) as List;
+    final data = await _api.get('/catalogo/colores') as List;
     return data.map((e) => ColorCatalogo.fromJson(e)).toList();
   }
 
   Future<List<CatalogoProducto>> destacados({int limit = 12}) async {
     final data =
-        await _api.get(
-              _conQuery('/catalogo/destacados', {'limit': limit}),
-              auth: false,
-            )
+        await _api.get(_conQuery('/catalogo/destacados', {'limit': limit}))
             as List;
     return data.map((e) => CatalogoProducto.fromJson(e)).toList();
   }
@@ -64,22 +63,18 @@ class TiendaService {
         'page': page,
         'size': size,
       }),
-      auth: false,
     );
     return CatalogoPagina.fromJson(data as Map<String, dynamic>);
   }
 
   Future<CatalogoProductoDetalle> detalle(int id) async {
-    final data = await _api.get('/catalogo/productos/$id', auth: false);
+    final data = await _api.get('/catalogo/productos/$id');
     return CatalogoProductoDetalle.fromJson(data as Map<String, dynamic>);
   }
 
   Future<List<DisponibilidadSucursal>> disponibilidad(int varianteId) async {
     final data =
-        await _api.get(
-              '/catalogo/variantes/$varianteId/disponibilidad',
-              auth: false,
-            )
+        await _api.get('/catalogo/variantes/$varianteId/disponibilidad')
             as List;
     return data.map((e) => DisponibilidadSucursal.fromJson(e)).toList();
   }

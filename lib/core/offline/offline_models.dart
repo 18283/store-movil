@@ -147,9 +147,13 @@ class ItemOfflineDto {
 
 enum EstadoOperacionLocal { local, enviando, confirmado, rechazado }
 
+// El backend manda el estado en MAYÚSCULAS ("CONFIRMADO", "RECHAZADO"),
+// pero el nombre de un enum de Dart siempre es minúscula ("confirmado"):
+// comparar por .name directo nunca coincidía y todo caía silenciosamente
+// en "local" (pendiente), sin importar lo que el servidor respondiera.
 EstadoOperacionLocal estadoOperacionDesdeTexto(String texto) =>
     EstadoOperacionLocal.values.firstWhere(
-      (e) => e.name == texto,
+      (e) => e.name.toUpperCase() == texto.toUpperCase(),
       orElse: () => EstadoOperacionLocal.local,
     );
 

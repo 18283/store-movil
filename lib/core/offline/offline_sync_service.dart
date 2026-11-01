@@ -1,7 +1,6 @@
 import 'dart:math';
 
 import '../network/api_client.dart';
-import '../network/api_exception.dart';
 import 'offline_database.dart';
 import 'offline_models.dart';
 
@@ -93,8 +92,11 @@ class OfflineSyncService {
           } else {
             rechazadas++;
           }
-        } on ApiException {
-          // Se cortó la conexión a mitad de camino: vuelve a LOCAL y se
+        } catch (_) {
+          // Cualquier falla (red, timeout, respuesta inesperada) vuelve a
+          // LOCAL en vez de quedar trabada en "Sincronizando": como el
+          // servidor es idempotente por clave, un reintento nunca duplica,
+          // y si ya se había procesado, el reintento trae el resultado real.
           // reintenta en la próxima sincronización. No se pierde.
           await _db.guardarOperacion(
             op.copyWith(estado: EstadoOperacionLocal.local),

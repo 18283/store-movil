@@ -78,7 +78,11 @@ class _OfflineCatalogPageState extends State<OfflineCatalogPage> {
       _cargarOperaciones();
       widget.tarjetaService
           .estado()
-          .then((e) => mounted ? setState(() => _tieneTarjeta = e.tieneTarjetaGuardada) : null)
+          .then(
+            (e) => mounted
+                ? setState(() => _tieneTarjeta = e.tieneTarjetaGuardada)
+                : null,
+          )
           .catchError((_) {});
     }
   }
@@ -103,15 +107,17 @@ class _OfflineCatalogPageState extends State<OfflineCatalogPage> {
       setState(() => existente.first.cantidad++);
       return;
     }
-    setState(() => _pedido.add(
-          ItemPedidoOffline(
-            varianteId: item.variante.id,
-            cantidad: 1,
-            producto: item.producto.nombre,
-            talla: item.variante.talla,
-            color: item.variante.color,
-          ),
-        ));
+    setState(
+      () => _pedido.add(
+        ItemPedidoOffline(
+          varianteId: item.variante.id,
+          cantidad: 1,
+          producto: item.producto.nombre,
+          talla: item.variante.talla,
+          color: item.variante.color,
+        ),
+      ),
+    );
   }
 
   void _quitarDelPedido(int varianteId) {
@@ -142,7 +148,8 @@ class _OfflineCatalogPageState extends State<OfflineCatalogPage> {
     );
     setState(() {
       _pedido.clear();
-      _exito = 'Reserva guardada en este dispositivo. Se confirmará apenas vuelva la conexión.';
+      _exito =
+          'Reserva guardada en este dispositivo. Se confirmará apenas vuelva la conexión.';
     });
     await _cargarOperaciones();
   }
@@ -150,7 +157,10 @@ class _OfflineCatalogPageState extends State<OfflineCatalogPage> {
   Future<void> _abrirFormularioVenta() async {
     if (_pedido.isEmpty) return;
     if (!_tieneTarjeta) {
-      setState(() => _error = 'Necesitás guardar una tarjeta en "Mi cuenta" antes de comprar sin conexión.');
+      setState(
+        () => _error =
+            'Necesitás guardar una tarjeta en "Mi cuenta" antes de comprar sin conexión.',
+      );
       return;
     }
     final datos = await showModalBottomSheet<Map<String, dynamic>>(
@@ -159,17 +169,15 @@ class _OfflineCatalogPageState extends State<OfflineCatalogPage> {
       builder: (_) => _FormularioVentaOffline(),
     );
     if (datos == null) return;
-    await widget.syncService.registrarVenta(
-      {
-        'items': _itemsPedidoJson,
-        'direccion_entrega': datos['direccion_entrega'],
-        'referencia_entrega': datos['referencia_entrega'],
-      },
-      'Compra de ${_pedido.length} prenda(s)',
-    );
+    await widget.syncService.registrarVenta({
+      'items': _itemsPedidoJson,
+      'direccion_entrega': datos['direccion_entrega'],
+      'referencia_entrega': datos['referencia_entrega'],
+    }, 'Compra de ${_pedido.length} prenda(s)');
     setState(() {
       _pedido.clear();
-      _exito = 'Compra guardada en este dispositivo. Se cobrará a tu tarjeta guardada apenas vuelva la conexión.';
+      _exito =
+          'Compra guardada en este dispositivo. Se cobrará a tu tarjeta guardada apenas vuelva la conexión.';
     });
     await _cargarOperaciones();
   }
@@ -181,7 +189,8 @@ class _OfflineCatalogPageState extends State<OfflineCatalogPage> {
       final r = await widget.syncService.sincronizar();
       if (r.confirmadas > 0 || r.rechazadas > 0) {
         setState(() {
-          _exito = 'Sincronización: ${r.confirmadas} confirmada(s), ${r.rechazadas} rechazada(s).';
+          _exito =
+              'Sincronización: ${r.confirmadas} confirmada(s), ${r.rechazadas} rechazada(s).';
         });
       }
       await _cargarOperaciones();
@@ -191,9 +200,18 @@ class _OfflineCatalogPageState extends State<OfflineCatalogPage> {
   }
 
   Future<void> _habilitarPush() async {
-    final ok = await widget.pushService.habilitar();
-    if (mounted) {
-      setState(() => _exito = ok ? 'Notificaciones activadas.' : 'No se pudieron activar las notificaciones.');
+    final error = await widget.pushService.habilitar();
+    if (!mounted) return;
+    if (error == null) {
+      setState(() {
+        _exito = 'Notificaciones activadas.';
+        _error = null;
+      });
+    } else {
+      setState(() {
+        _error = error;
+        _exito = null;
+      });
     }
   }
 
@@ -310,135 +328,164 @@ class _OfflineCatalogPageState extends State<OfflineCatalogPage> {
           ),
         ],
       ),
-      body: Column(
-        children: [
-          if (_cargando || _sincronizando) const LinearProgressIndicator(),
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              children: [
-                LayoutBuilder(
-                  builder: (context, constraints) {
-                    final selector = DropdownButtonFormField<int>(
-                      initialValue: _sucursalId,
-                      isExpanded: true,
-                      decoration: const InputDecoration(
-                        labelText: 'Sucursal',
-                        border: OutlineInputBorder(),
-                      ),
-                      items: _sucursales
-                          .map(
-                            (s) => DropdownMenuItem(
-                              value: s.id,
-                              child: Text(
-                                '${s.nombre} — ${s.ciudad}',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          )
-                          .toList(),
-                      onChanged: _sincronizando ? null : _cambiarSucursal,
-                    );
-                    final boton = FilledButton.icon(
-                      onPressed: _sincronizando || _sucursalId == null
-                          ? null
-                          : _sincronizar,
-                      icon: const Icon(Icons.sync),
-                      label: Text(_datos == null ? 'Preparar' : 'Actualizar'),
-                    );
+      // Toda la pantalla es UN solo scroll (filtros + lista + pedido + cola):
+      // así nunca compiten por una altura fija entre sí, sin importar cuánto
+      // contenido haya cada una — la pantalla completa scrollea si hace falta.
+      body: SafeArea(
+        child: CustomScrollView(
+          slivers: [
+            if (_cargando || _sincronizando)
+              const SliverToBoxAdapter(child: LinearProgressIndicator()),
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  children: [
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        final selector = DropdownButtonFormField<int>(
+                          initialValue: _sucursalId,
+                          isExpanded: true,
+                          decoration: const InputDecoration(
+                            labelText: 'Sucursal',
+                            border: OutlineInputBorder(),
+                          ),
+                          items: _sucursales
+                              .map(
+                                (s) => DropdownMenuItem(
+                                  value: s.id,
+                                  child: Text(
+                                    '${s.nombre} — ${s.ciudad}',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: _sincronizando ? null : _cambiarSucursal,
+                        );
+                        final boton = FilledButton.icon(
+                          onPressed: _sincronizando || _sucursalId == null
+                              ? null
+                              : _sincronizar,
+                          icon: const Icon(Icons.sync),
+                          label: Text(
+                            _datos == null ? 'Preparar' : 'Actualizar',
+                          ),
+                        );
 
-                    if (constraints.maxWidth < 520) {
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [selector, const SizedBox(height: 8), boton],
-                      );
-                    }
-                    return Row(
-                      children: [
-                        Expanded(child: selector),
-                        const SizedBox(width: 8),
-                        boton,
-                      ],
-                    );
-                  },
-                ),
-                if (_error != null)
-                  _mensajeWidget(
-                    _error!,
-                    Colors.red.shade50,
-                    Colors.red.shade800,
-                  ),
-                if (_exito != null)
-                  _mensajeWidget(
-                    _exito!,
-                    Colors.green.shade50,
-                    Colors.green.shade800,
-                  ),
-                if (_datos != null) ...[
-                  _mensajeWidget(
-                    'Las existencias pueden estar desactualizadas. Última sincronización: ${_fecha(_datos!.guardadoEn)}.',
-                    Colors.amber.shade50,
-                    Colors.brown.shade700,
-                  ),
-                  TextField(
-                    controller: _busquedaCtrl,
-                    decoration: const InputDecoration(
-                      prefixIcon: Icon(Icons.search),
-                      hintText: 'Buscar nombre, categoría o SKU',
+                        if (constraints.maxWidth < 520) {
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              selector,
+                              const SizedBox(height: 8),
+                              boton,
+                            ],
+                          );
+                        }
+                        return Row(
+                          children: [
+                            Expanded(child: selector),
+                            const SizedBox(width: 8),
+                            boton,
+                          ],
+                        );
+                      },
                     ),
-                    onChanged: (_) {
-                      _debounce?.cancel();
-                      _debounce = Timer(const Duration(milliseconds: 350), () {
-                        if (mounted) setState(() {});
-                      });
-                    },
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: DropdownButtonFormField<String>(
-                          initialValue: _talla,
-                          decoration: const InputDecoration(labelText: 'Talla'),
-                          items: [
-                            const DropdownMenuItem(
-                              value: '',
-                              child: Text('Todas'),
-                            ),
-                            ..._tallas.map(
-                              (v) => DropdownMenuItem(value: v, child: Text(v)),
-                            ),
-                          ],
-                          onChanged: (v) => setState(() => _talla = v ?? ''),
-                        ),
+                    if (_error != null)
+                      _mensajeWidget(
+                        _error!,
+                        Colors.red.shade50,
+                        Colors.red.shade800,
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: DropdownButtonFormField<String>(
-                          initialValue: _color,
-                          decoration: const InputDecoration(labelText: 'Color'),
-                          items: [
-                            const DropdownMenuItem(
-                              value: '',
-                              child: Text('Todos'),
-                            ),
-                            ..._colores.map(
-                              (v) => DropdownMenuItem(value: v, child: Text(v)),
-                            ),
-                          ],
-                          onChanged: (v) => setState(() => _color = v ?? ''),
+                    if (_exito != null)
+                      _mensajeWidget(
+                        _exito!,
+                        Colors.green.shade50,
+                        Colors.green.shade800,
+                      ),
+                    if (_datos != null) ...[
+                      _mensajeWidget(
+                        'Las existencias pueden estar desactualizadas. Última sincronización: ${_fecha(_datos!.guardadoEn)}.',
+                        Colors.amber.shade50,
+                        Colors.brown.shade700,
+                      ),
+                      TextField(
+                        controller: _busquedaCtrl,
+                        decoration: const InputDecoration(
+                          prefixIcon: Icon(Icons.search),
+                          hintText: 'Buscar nombre, categoría o SKU',
                         ),
+                        onChanged: (_) {
+                          _debounce?.cancel();
+                          _debounce = Timer(
+                            const Duration(milliseconds: 350),
+                            () {
+                              if (mounted) setState(() {});
+                            },
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: DropdownButtonFormField<String>(
+                              initialValue: _talla,
+                              decoration: const InputDecoration(
+                                labelText: 'Talla',
+                              ),
+                              items: [
+                                const DropdownMenuItem(
+                                  value: '',
+                                  child: Text('Todas'),
+                                ),
+                                ..._tallas.map(
+                                  (v) => DropdownMenuItem(
+                                    value: v,
+                                    child: Text(v),
+                                  ),
+                                ),
+                              ],
+                              onChanged: (v) =>
+                                  setState(() => _talla = v ?? ''),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: DropdownButtonFormField<String>(
+                              initialValue: _color,
+                              decoration: const InputDecoration(
+                                labelText: 'Color',
+                              ),
+                              items: [
+                                const DropdownMenuItem(
+                                  value: '',
+                                  child: Text('Todos'),
+                                ),
+                                ..._colores.map(
+                                  (v) => DropdownMenuItem(
+                                    value: v,
+                                    child: Text(v),
+                                  ),
+                                ),
+                              ],
+                              onChanged: (v) =>
+                                  setState(() => _color = v ?? ''),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
-                  ),
-                ],
-              ],
+                  ],
+                ),
+              ),
             ),
-          ),
-          Expanded(child: _contenido()),
-          if (widget.esCliente) ..._panelPedidoYCola(),
-        ],
+            _contenidoSliver(),
+            if (widget.esCliente) ..._panelesSliver(),
+          ],
+        ),
       ),
     );
   }
@@ -446,62 +493,64 @@ class _OfflineCatalogPageState extends State<OfflineCatalogPage> {
   // --------------------------------------------------------------------------- #
   //  CU11/CU12/CU13/CU14/CU15 — Pedido sin conexión y cola de sincronización
   // --------------------------------------------------------------------------- #
-  List<Widget> _panelPedidoYCola() {
+  List<Widget> _panelesSliver() {
     final widgets = <Widget>[];
 
     if (_pedido.isNotEmpty) {
+      // Alto natural (sin límite ni scroll propio): toda la pantalla es un
+      // solo CustomScrollView, así que esto simplemente crece y la página
+      // entera scrollea si hace falta. Nunca puede desbordar.
       widgets.add(
-        Container(
-          constraints: const BoxConstraints(maxHeight: 220),
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surfaceContainerHighest,
-            border: const Border(top: BorderSide(color: Colors.black12)),
-          ),
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text('Pedido sin conexión', style: Theme.of(context).textTheme.titleSmall),
-              const SizedBox(height: 6),
-              Flexible(
-                child: ListView(
-                  shrinkWrap: true,
+        SliverToBoxAdapter(
+          child: Container(
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surfaceContainerHighest,
+              border: const Border(top: BorderSide(color: Colors.black12)),
+            ),
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Pedido sin conexión',
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+                const SizedBox(height: 6),
+                for (final i in _pedido)
+                  ListTile(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(
+                      '${i.producto} · ${i.talla} · ${i.color} × ${i.cantidad}',
+                    ),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => _quitarDelPedido(i.varianteId),
+                    ),
+                  ),
+                const SizedBox(height: 6),
+                Row(
                   children: [
-                    for (final i in _pedido)
-                      ListTile(
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                        title: Text('${i.producto} · ${i.talla} · ${i.color} × ${i.cantidad}'),
-                        trailing: IconButton(
-                          icon: const Icon(Icons.close),
-                          onPressed: () => _quitarDelPedido(i.varianteId),
-                        ),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        icon: const Icon(Icons.event),
+                        label: const Text('Reservar'),
+                        onPressed: _abrirFormularioReserva,
                       ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        icon: const Icon(Icons.shopping_bag),
+                        label: const Text('Comprar'),
+                        onPressed: _abrirFormularioVenta,
+                      ),
+                    ),
                   ],
                 ),
-              ),
-              const SizedBox(height: 6),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      icon: const Icon(Icons.event),
-                      label: const Text('Reservar'),
-                      onPressed: _abrirFormularioReserva,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      icon: const Icon(Icons.shopping_bag),
-                      label: const Text('Comprar'),
-                      onPressed: _abrirFormularioVenta,
-                    ),
-                  ),
-                ],
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       );
@@ -509,61 +558,88 @@ class _OfflineCatalogPageState extends State<OfflineCatalogPage> {
 
     if (_operaciones.isNotEmpty) {
       widgets.add(
-        Container(
-          constraints: const BoxConstraints(maxHeight: 220),
-          decoration: const BoxDecoration(
-            border: Border(top: BorderSide(color: Colors.black12)),
-          ),
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text('Reservas y compras sin conexión', style: Theme.of(context).textTheme.titleSmall),
-                  FilledButton.icon(
-                    icon: _sincronizandoPendientes
-                        ? const SizedBox(
-                            height: 16,
-                            width: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.sync, size: 18),
-                    label: const Text('Sincronizar'),
-                    onPressed: _sincronizandoPendientes ? null : _sincronizarPendientes,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 4),
-              Flexible(
-                child: ListView(
-                  shrinkWrap: true,
+        SliverToBoxAdapter(
+          child: Container(
+            decoration: const BoxDecoration(
+              border: Border(top: BorderSide(color: Colors.black12)),
+            ),
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    for (final op in _operaciones)
-                      ListTile(
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                        leading: Icon(
-                          op.tipo == 'RESERVA' ? Icons.event : Icons.shopping_bag,
-                        ),
-                        title: Text(op.resumen, maxLines: 1, overflow: TextOverflow.ellipsis),
-                        trailing: Text(
-                          op.etiquetaEstado,
-                          style: TextStyle(
-                            color: op.estado == EstadoOperacionLocal.confirmado
-                                ? Colors.green
-                                : op.estado == EstadoOperacionLocal.rechazado
-                                ? Colors.red
-                                : Colors.orange,
-                          ),
-                        ),
-                      ),
+                    Text(
+                      'Reservas y compras sin conexión',
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
+                    FilledButton.icon(
+                      icon: _sincronizandoPendientes
+                          ? const SizedBox(
+                              height: 16,
+                              width: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.sync, size: 18),
+                      label: const Text('Sincronizar'),
+                      onPressed: _sincronizandoPendientes
+                          ? null
+                          : _sincronizarPendientes,
+                    ),
                   ],
                 ),
-              ),
-            ],
+                const SizedBox(height: 4),
+                for (final op in _operaciones)
+                  ListTile(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(
+                      op.tipo == 'RESERVA' ? Icons.event : Icons.shopping_bag,
+                    ),
+                    title: Text(
+                      op.resumen,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    trailing: SizedBox(
+                      width: 110,
+                      child: Text(
+                        op.etiquetaEstado,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.right,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: op.estado == EstadoOperacionLocal.confirmado
+                              ? Colors.green
+                              : op.estado == EstadoOperacionLocal.rechazado
+                              ? Colors.red
+                              : Colors.orange,
+                        ),
+                      ),
+                    ),
+                    onTap: () => showDialog<void>(
+                      context: context,
+                      builder: (_) => AlertDialog(
+                        title: Text(
+                          op.tipo == 'RESERVA' ? 'Reserva' : 'Compra',
+                        ),
+                        content: Text(
+                          '${op.resumen}\n\nEstado: ${op.etiquetaEstado}',
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.of(context).pop(),
+                            child: const Text('Cerrar'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           ),
         ),
       );
@@ -572,63 +648,89 @@ class _OfflineCatalogPageState extends State<OfflineCatalogPage> {
     return widgets;
   }
 
-  Widget _contenido() {
-    if (_cargando) return const Center(child: CircularProgressIndicator());
+  Widget _contenidoSliver() {
+    if (_cargando) {
+      return const SliverToBoxAdapter(
+        child: Center(
+          child: Padding(
+            padding: EdgeInsets.all(24),
+            child: CircularProgressIndicator(),
+          ),
+        ),
+      );
+    }
     if (_datos == null) {
-      return const Center(
-        child: Padding(
-          padding: EdgeInsets.all(24),
-          child: Text(
-            'No existen datos locales. Con conexión, seleccioná una sucursal y presioná Preparar.',
+      return const SliverToBoxAdapter(
+        child: Center(
+          child: Padding(
+            padding: EdgeInsets.all(24),
+            child: Text(
+              'No existen datos locales. Con conexión, seleccioná una sucursal y presioná Preparar.',
+            ),
           ),
         ),
       );
     }
     final items = _resultados;
     if (items.isEmpty) {
-      return const Center(
-        child: Text('No existen productos para los filtros seleccionados.'),
+      return const SliverToBoxAdapter(
+        child: Center(
+          child: Padding(
+            padding: EdgeInsets.all(24),
+            child: Text('No existen productos para los filtros seleccionados.'),
+          ),
+        ),
       );
     }
-    return ListView.builder(
+    return SliverPadding(
       padding: const EdgeInsets.fromLTRB(12, 0, 12, 20),
-      itemCount: items.length,
-      itemBuilder: (context, i) {
-        final item = items[i];
-        return Card(
-          child: ListTile(
-            leading: item.variante.imagenUrl == null
-                ? const Icon(Icons.checkroom)
-                : Image.network(
-                    item.variante.imagenUrl!,
-                    width: 56,
-                    errorBuilder: (_, _, _) => const Icon(Icons.checkroom),
-                  ),
-            title: Text(item.producto.nombre),
-            subtitle: Text(
-              '${item.producto.categoria} · ${item.variante.talla} · ${item.variante.color}\nÚltima disponibilidad: ${item.variante.cantidadDisponible}',
-            ),
-            isThreeLine: true,
-            trailing: Column(
+      sliver: SliverList(
+        delegate: SliverChildBuilderDelegate(childCount: items.length, (
+          context,
+          i,
+        ) {
+          final item = items[i];
+          return Card(
+            child: Column(
               mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Text(
-                  item.variante.precio == null
-                      ? '—'
-                      : 'Bs ${item.variante.precio!.toStringAsFixed(2)}',
+                ListTile(
+                  leading: item.variante.imagenUrl == null
+                      ? const Icon(Icons.checkroom)
+                      : Image.network(
+                          item.variante.imagenUrl!,
+                          width: 56,
+                          errorBuilder: (_, _, _) =>
+                              const Icon(Icons.checkroom),
+                        ),
+                  title: Text(item.producto.nombre),
+                  subtitle: Text(
+                    '${item.producto.categoria} · ${item.variante.talla} · ${item.variante.color}\nÚltima disponibilidad: ${item.variante.cantidadDisponible}',
+                  ),
+                  isThreeLine: true,
+                  trailing: Text(
+                    item.variante.precio == null
+                        ? '—'
+                        : 'Bs ${item.variante.precio!.toStringAsFixed(2)}',
+                  ),
                 ),
                 if (widget.esCliente)
-                  IconButton(
-                    tooltip: 'Agregar al pedido offline',
-                    icon: const Icon(Icons.add_shopping_cart),
-                    onPressed: () => _agregarAlPedido(item),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: Padding(
+                      padding: const EdgeInsets.only(right: 8, bottom: 4),
+                      child: TextButton.icon(
+                        icon: const Icon(Icons.add_shopping_cart, size: 18),
+                        label: const Text('Agregar al pedido offline'),
+                        onPressed: () => _agregarAlPedido(item),
+                      ),
+                    ),
                   ),
               ],
             ),
-          ),
-        );
-      },
+          );
+        }),
+      ),
     );
   }
 
@@ -658,7 +760,8 @@ class _OfflineCatalogPageState extends State<OfflineCatalogPage> {
 /// decide al sincronizar (CU14) si el turno sigue disponible.
 class _FormularioReservaOffline extends StatefulWidget {
   @override
-  State<_FormularioReservaOffline> createState() => _FormularioReservaOfflineState();
+  State<_FormularioReservaOffline> createState() =>
+      _FormularioReservaOfflineState();
 }
 
 class _FormularioReservaOfflineState extends State<_FormularioReservaOffline> {
@@ -706,7 +809,10 @@ class _FormularioReservaOfflineState extends State<_FormularioReservaOffline> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text('Reservar sin conexión', style: Theme.of(context).textTheme.titleMedium),
+          Text(
+            'Reservar sin conexión',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
           const SizedBox(height: 16),
           ListTile(
             contentPadding: EdgeInsets.zero,
@@ -745,7 +851,8 @@ class _FormularioReservaOfflineState extends State<_FormularioReservaOffline> {
 /// CU12 — dirección de entrega para una venta de contado sin conexión.
 class _FormularioVentaOffline extends StatefulWidget {
   @override
-  State<_FormularioVentaOffline> createState() => _FormularioVentaOfflineState();
+  State<_FormularioVentaOffline> createState() =>
+      _FormularioVentaOfflineState();
 }
 
 class _FormularioVentaOfflineState extends State<_FormularioVentaOffline> {
@@ -786,7 +893,10 @@ class _FormularioVentaOfflineState extends State<_FormularioVentaOffline> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text('Comprar sin conexión', style: Theme.of(context).textTheme.titleMedium),
+          Text(
+            'Comprar sin conexión',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
           const SizedBox(height: 4),
           Text(
             'Se cobrará a tu tarjeta guardada apenas vuelva la conexión.',
@@ -811,7 +921,10 @@ class _FormularioVentaOfflineState extends State<_FormularioVentaOffline> {
           ),
           if (_error != null) ...[
             const SizedBox(height: 4),
-            Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+            Text(
+              _error!,
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
           ],
           const SizedBox(height: 16),
           FilledButton(

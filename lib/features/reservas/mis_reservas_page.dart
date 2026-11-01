@@ -157,7 +157,13 @@ class _TarjetaReserva extends StatelessWidget {
               children: [
                 const Icon(Icons.storefront_outlined, size: 18),
                 const SizedBox(width: 6),
-                Text('${reserva.sucursal} — ${reserva.ciudad}'),
+                Expanded(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text('${reserva.sucursal} — ${reserva.ciudad}'),
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 8),

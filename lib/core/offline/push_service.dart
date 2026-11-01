@@ -14,17 +14,24 @@ class PushService {
 
   PushService(this._api);
 
-  Future<bool> habilitar() async {
+  /// Devuelve null si quedó habilitado, o un mensaje explicando por qué no
+  /// (se muestra tal cual en pantalla — a propósito no se traga el error,
+  /// para poder diagnosticar sin necesitar un log de depuración).
+  Future<String?> habilitar() async {
     try {
       final messaging = FirebaseMessaging.instance;
       final settings = await messaging.requestPermission();
       final concedido =
           settings.authorizationStatus == AuthorizationStatus.authorized ||
           settings.authorizationStatus == AuthorizationStatus.provisional;
-      if (!concedido) return false;
+      if (!concedido) {
+        return 'No diste permiso de notificaciones (estado: ${settings.authorizationStatus.name}).';
+      }
 
       final token = await messaging.getToken();
-      if (token == null) return false;
+      if (token == null) {
+        return 'Firebase no devolvió un token (revisá que tengas Google Play Services actualizado).';
+      }
 
       await _api.post(
         '/offline/dispositivos',
@@ -44,9 +51,9 @@ class PushService {
           );
         });
       }
-      return true;
-    } catch (_) {
-      return false;
+      return null;
+    } catch (e) {
+      return 'Error: $e';
     }
   }
 }
