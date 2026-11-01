@@ -3,15 +3,28 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/models/venta.dart';
 import '../../core/widgets/precio_promo.dart';
+import '../cambios/cambios_service.dart';
+import '../cambios/solicitar_cambio_sheet.dart';
+import '../catalogo/tienda_service.dart';
 import 'ventas_service.dart';
+
+const int _plazoHorasCambio = 48;
 
 /// CU22/CU28 — Mis compras: historial + confirma pagos pendientes al abrir
 /// (cubre el caso de haber pagado escaneando el QR desde otro dispositivo,
 /// donde nunca se abrió una pantalla de "resultado" que hiciera el polling).
+/// También CU18 — pedir un cambio o devolución de una prenda ya comprada.
 class MisComprasPage extends StatefulWidget {
   final VentasService ventas;
+  final CambiosService cambios;
+  final TiendaService tienda;
 
-  const MisComprasPage({super.key, required this.ventas});
+  const MisComprasPage({
+    super.key,
+    required this.ventas,
+    required this.cambios,
+    required this.tienda,
+  });
 
   @override
   State<MisComprasPage> createState() => _MisComprasPageState();
@@ -127,6 +140,33 @@ class _MisComprasPageState extends State<MisComprasPage> {
     }
   }
 
+  bool _puedeSolicitarCambio(Venta venta) {
+    if (venta.estado != 'PAGADA' && venta.estado != 'COMPLETADA') return false;
+    final creada = DateTime.tryParse(venta.fechaCreacion);
+    if (creada == null) return false;
+    final limite = creada.add(const Duration(hours: _plazoHorasCambio));
+    return DateTime.now().isBefore(limite);
+  }
+
+  Future<void> _solicitarCambio(Venta venta, ItemVenta item) async {
+    final solicitud = await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => SolicitarCambioSheet(
+        data: SolicitarCambioData(ventaId: venta.id, item: item),
+        cambios: widget.cambios,
+        tienda: widget.tienda,
+      ),
+    );
+    if (solicitud != null && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Solicitud enviada. Llevá la prenda a la sucursal.'),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -153,6 +193,8 @@ class _MisComprasPageState extends State<MisComprasPage> {
                   procesando: _procesando == _ventas[i].id,
                   onReintentar: () => _reintentarPago(_ventas[i]),
                   onCancelar: () => _cancelar(_ventas[i]),
+                  puedeSolicitarCambio: _puedeSolicitarCambio(_ventas[i]),
+                  onSolicitarCambio: (item) => _solicitarCambio(_ventas[i], item),
                 ),
               ),
       ),
@@ -165,12 +207,16 @@ class _TarjetaVenta extends StatelessWidget {
   final bool procesando;
   final VoidCallback onReintentar;
   final VoidCallback onCancelar;
+  final bool puedeSolicitarCambio;
+  final void Function(ItemVenta item) onSolicitarCambio;
 
   const _TarjetaVenta({
     required this.venta,
     required this.procesando,
     required this.onReintentar,
     required this.onCancelar,
+    required this.puedeSolicitarCambio,
+    required this.onSolicitarCambio,
   });
 
   @override
@@ -214,28 +260,47 @@ class _TarjetaVenta extends StatelessWidget {
             ...venta.items.map(
               (item) => Padding(
                 padding: const EdgeInsets.only(top: 2),
-                child: Row(
+                child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: Text(
-                        '${item.producto ?? ''} · ${item.talla ?? ''}/${item.color ?? ''} × ${item.cantidad}'
-                        '${venta.variasSucursales ? ' — desde ${item.sucursal}' : ''}',
-                        style: Theme.of(context).textTheme.bodySmall,
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            '${item.producto ?? ''} · ${item.talla ?? ''}/${item.color ?? ''} × ${item.cantidad}'
+                            '${venta.variasSucursales ? ' — desde ${item.sucursal}' : ''}',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        PrecioPromo(
+                          precio: item.precioOriginal != null &&
+                                  item.precioOriginal! > item.precioUnitario
+                              ? item.precioOriginal!
+                              : item.precioUnitario,
+                          precioPromocional: item.precioOriginal != null &&
+                                  item.precioOriginal! > item.precioUnitario
+                              ? item.precioUnitario
+                              : null,
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
+                    ),
+                    if (puedeSolicitarCambio)
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: TextButton.icon(
+                          style: TextButton.styleFrom(
+                            padding: EdgeInsets.zero,
+                            minimumSize: const Size(0, 32),
+                            visualDensity: VisualDensity.compact,
+                          ),
+                          onPressed: () => onSolicitarCambio(item),
+                          icon: const Icon(Icons.sync_alt, size: 16),
+                          label: const Text('Cambio o devolución'),
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    PrecioPromo(
-                      precio: item.precioOriginal != null &&
-                              item.precioOriginal! > item.precioUnitario
-                          ? item.precioOriginal!
-                          : item.precioUnitario,
-                      precioPromocional: item.precioOriginal != null &&
-                              item.precioOriginal! > item.precioUnitario
-                          ? item.precioUnitario
-                          : null,
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
                   ],
                 ),
               ),

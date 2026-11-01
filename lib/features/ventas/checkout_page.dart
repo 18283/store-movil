@@ -5,9 +5,12 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../core/auth/auth_service.dart';
 import '../../core/models/venta.dart';
 import '../../core/network/api_exception.dart';
+import '../cambios/cambios_service.dart';
 import '../carrito/carrito_service.dart';
+import '../catalogo/tienda_service.dart';
 import 'mis_compras_page.dart';
 import 'ventas_service.dart';
 
@@ -178,9 +181,14 @@ class _CheckoutPageState extends State<CheckoutPage> with WidgetsBindingObserver
   }
 
   void _verMisCompras() {
+    final api = context.read<AuthService>().api;
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(
-        builder: (_) => MisComprasPage(ventas: widget.ventas),
+        builder: (_) => MisComprasPage(
+          ventas: widget.ventas,
+          cambios: CambiosService(api),
+          tienda: TiendaService(api),
+        ),
       ),
     );
   }

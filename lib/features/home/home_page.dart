@@ -13,6 +13,8 @@ import '../../core/offline/offline_service.dart';
 import '../../core/offline/offline_sync_service.dart';
 import '../../core/offline/push_service.dart';
 import '../../core/offline/tarjeta_service.dart';
+import '../cambios/cambios_service.dart';
+import '../cambios/mis_cambios_page.dart';
 import '../offline/offline_catalog_page.dart';
 import '../reservas/mi_reserva_page.dart';
 import '../reservas/mis_reservas_page.dart';
@@ -27,6 +29,7 @@ enum _MenuCuenta {
   miReserva,
   reservas,
   compras,
+  cambios,
   asistente,
   vestidorPrueba,
   catalogoOffline,
@@ -77,7 +80,18 @@ class _HomePageState extends State<HomePage> {
       case _MenuCuenta.compras:
         Navigator.of(context).push(
           MaterialPageRoute(
-            builder: (_) => MisComprasPage(ventas: VentasService(auth.api)),
+            builder: (_) => MisComprasPage(
+              ventas: VentasService(auth.api),
+              cambios: CambiosService(auth.api),
+              tienda: TiendaService(auth.api),
+            ),
+          ),
+        );
+        break;
+      case _MenuCuenta.cambios:
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => MisCambiosPage(cambios: CambiosService(auth.api)),
           ),
         );
         break;
@@ -181,6 +195,13 @@ class _HomePageState extends State<HomePage> {
                 child: ListTile(
                   leading: Icon(Icons.receipt_long_outlined),
                   title: Text('Mis compras'),
+                ),
+              ),
+              const PopupMenuItem(
+                value: _MenuCuenta.cambios,
+                child: ListTile(
+                  leading: Icon(Icons.sync_alt),
+                  title: Text('Mis cambios y devoluciones'),
                 ),
               ),
               const PopupMenuItem(

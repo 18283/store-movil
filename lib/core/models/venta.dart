@@ -9,6 +9,9 @@ double? _toDouble(dynamic v) {
 }
 
 class ItemVenta {
+  final int id;
+  final int varianteId;
+  final int? productoId;
   final String? producto;
   final String? talla;
   final String? color;
@@ -21,6 +24,9 @@ class ItemVenta {
   final String? sucursal;
 
   ItemVenta({
+    required this.id,
+    required this.varianteId,
+    this.productoId,
     required this.producto,
     required this.talla,
     required this.color,
@@ -32,6 +38,9 @@ class ItemVenta {
   });
 
   factory ItemVenta.fromJson(Map<String, dynamic> json) => ItemVenta(
+    id: json['id'] as int,
+    varianteId: json['variante_id'] as int,
+    productoId: json['producto_id'] as int?,
     producto: json['producto'] as String?,
     talla: json['talla'] as String?,
     color: json['color'] as String?,
