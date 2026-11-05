@@ -15,6 +15,8 @@ import '../../core/offline/push_service.dart';
 import '../../core/offline/tarjeta_service.dart';
 import '../cambios/cambios_service.dart';
 import '../cambios/mis_cambios_page.dart';
+import '../traspasos/solicitar_traspaso_page.dart';
+import '../traspasos/traspasos_service.dart';
 import '../offline/offline_catalog_page.dart';
 import '../reservas/mi_reserva_page.dart';
 import '../reservas/mis_reservas_page.dart';
@@ -30,6 +32,7 @@ enum _MenuCuenta {
   reservas,
   compras,
   cambios,
+  traspasos,
   asistente,
   vestidorPrueba,
   catalogoOffline,
@@ -95,6 +98,13 @@ class _HomePageState extends State<HomePage> {
           ),
         );
         break;
+      case _MenuCuenta.traspasos:
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => SolicitarTraspasoPage(service: TraspasosService(auth.api)),
+          ),
+        );
+        break;
       case _MenuCuenta.asistente:
         Navigator.of(context).push(
           MaterialPageRoute(
@@ -142,6 +152,10 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthService>();
+    final rol = auth.usuario?.rol;
+    final puedeSolicitarTraspaso = rol == 'Cliente' ||
+        rol == 'EncargadoSucursal' ||
+        rol == 'Encargado';
     final cantidadCarrito = context.watch<CarritoService>().cantidadItems;
     final cantidadReserva = context.watch<ReservaBolsaService>().cantidad;
 
@@ -204,6 +218,14 @@ class _HomePageState extends State<HomePage> {
                   title: Text('Mis cambios y devoluciones'),
                 ),
               ),
+              if (puedeSolicitarTraspaso)
+                const PopupMenuItem(
+                  value: _MenuCuenta.traspasos,
+                  child: ListTile(
+                    leading: Icon(Icons.local_shipping_outlined),
+                    title: Text('Solicitar traspaso'),
+                  ),
+                ),
               const PopupMenuItem(
                 value: _MenuCuenta.asistente,
                 child: ListTile(

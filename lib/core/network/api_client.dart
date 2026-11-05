@@ -99,20 +99,47 @@ class ApiClient {
       return decoded;
     }
 
-    throw ApiException(_mensajeError(decoded), statusCode: res.statusCode);
+    throw ApiException(
+      _mensajeError(decoded),
+      statusCode: res.statusCode,
+      codigo: _codigoError(decoded),
+      data: decoded is Map<String, dynamic> ? decoded : null,
+    );
   }
 
   String _mensajeError(dynamic decoded) {
-    if (decoded is Map && decoded['detail'] != null) {
+    if (decoded is Map) {
       final detail = decoded['detail'];
-      if (detail is String) return detail;
+      if (detail is String && detail.trim().isNotEmpty) return detail;
+      if (detail is Map) {
+        for (final clave in ['mensaje', 'detail', 'msg']) {
+          final valor = detail[clave];
+          if (valor is String && valor.trim().isNotEmpty) return valor;
+        }
+      }
       if (detail is List && detail.isNotEmpty) {
         final primero = detail.first;
         if (primero is Map && primero['msg'] != null) {
           return primero['msg'].toString();
         }
       }
+      final mensaje = decoded['mensaje'];
+      if (mensaje is String && mensaje.trim().isNotEmpty) return mensaje;
     }
     return 'Ocurrió un error inesperado. Intentá de nuevo.';
+  }
+
+  /// Código de negocio: puede venir en el nivel superior (`codigo`) o dentro
+  /// de `detail` cuando el backend usa `HTTPException(detail={...})`.
+  String? _codigoError(dynamic decoded) {
+    if (decoded is! Map) return null;
+    final directo = decoded['codigo'];
+    if (directo is String && directo.isNotEmpty) return directo;
+    final detail = decoded['detail'];
+    if (detail is Map) {
+      final codigo = detail['codigo'];
+      if (codigo is String && codigo.isNotEmpty) return codigo;
+    }
+    return null;
   }
 }

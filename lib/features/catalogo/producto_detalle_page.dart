@@ -11,6 +11,9 @@ import '../reservas/mi_reserva_page.dart';
 import '../reservas/reservas_service.dart';
 import '../vestidor/prenda_ar.dart';
 import '../vestidor/vestidor_prueba_page.dart';
+import '../../core/auth/auth_service.dart';
+import '../traspasos/solicitar_traspaso_page.dart';
+import '../traspasos/traspasos_service.dart';
 import 'tienda_service.dart';
 
 /// CU9 (detalle) + CU12 (disponibilidad) + CU16 (reservar) + CU21 (carrito).
@@ -250,6 +253,12 @@ class _ProductoDetallePageState extends State<ProductoDetallePage> {
       );
     }
 
+    final auth = context.watch<AuthService>();
+    final rol = auth.usuario?.rol;
+    final puedeSolicitarTraspaso = rol == 'Cliente' ||
+        rol == 'EncargadoSucursal' ||
+        rol == 'Encargado';
+
     final producto = _producto!;
     final variante = _varianteSeleccionada;
     final imagen = variante?.imagenEfectivo ?? producto.imagenUrl;
@@ -431,6 +440,30 @@ class _ProductoDetallePageState extends State<ProductoDetallePage> {
                 ),
               ],
             ),
+            if (puedeSolicitarTraspaso) ...[
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextButton.icon(
+                      onPressed: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => SolicitarTraspasoPage(
+                              service: TraspasosService(auth.api),
+                              varianteIdInicial: variante?.id,
+                              queryInicial: producto.nombre,
+                            ),
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.local_shipping_outlined),
+                      label: const Text('Solicitar traspaso a otra sucursal'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ],
         ),
       ),
