@@ -33,8 +33,7 @@ enum _MenuCuenta {
   reservas,
   compras,
   cambios,
-  traspasos,
-  consultarSeguimientoTraspaso,
+  traspasosMenu,
   asistente,
   vestidorPrueba,
   catalogoOffline,
@@ -100,19 +99,8 @@ class _HomePageState extends State<HomePage> {
           ),
         );
         break;
-      case _MenuCuenta.traspasos:
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => SolicitarTraspasoPage(service: TraspasosService(auth.api)),
-          ),
-        );
-        break;
-      case _MenuCuenta.consultarSeguimientoTraspaso:
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => SeguimientoTraspasoPage(service: TraspasosService(auth.api)),
-          ),
-        );
+      case _MenuCuenta.traspasosMenu:
+        _mostrarMenuTraspasos(auth);
         break;
       case _MenuCuenta.asistente:
         Navigator.of(context).push(
@@ -156,6 +144,47 @@ class _HomePageState extends State<HomePage> {
         auth.logout();
         break;
     }
+  }
+
+  void _mostrarMenuTraspasos(AuthService auth) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.local_shipping, color: Colors.green),
+            SizedBox(width: 8),
+            Text('Traspasos'),
+          ],
+        ),
+        contentPadding: const EdgeInsets.symmetric(vertical: 10),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.local_shipping),
+              title: const Text('Solicitar traspaso'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(context, MaterialPageRoute(
+                  builder: (_) => SolicitarTraspasoPage(service: TraspasosService(auth.api)),
+                ));
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.query_stats),
+              title: const Text('Seguimiento de traspaso'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(context, MaterialPageRoute(
+                  builder: (_) => SeguimientoTraspasoPage(service: TraspasosService(auth.api)),
+                ));
+              },
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -227,20 +256,12 @@ class _HomePageState extends State<HomePage> {
                   title: Text('Mis cambios y devoluciones'),
                 ),
               ),
-              if (puedeSolicitarTraspaso)
+              if (puedeSolicitarTraspaso || rol == 'Cliente' || rol == 'EncargadoSucursal')
                 const PopupMenuItem(
-                  value: _MenuCuenta.traspasos,
+                  value: _MenuCuenta.traspasosMenu,
                   child: ListTile(
                     leading: Icon(Icons.local_shipping_outlined),
-                    title: Text('Solicitar traspaso'),
-                  ),
-                ),
-              if (rol == 'Cliente' || rol == 'EncargadoSucursal')
-                const PopupMenuItem(
-                  value: _MenuCuenta.consultarSeguimientoTraspaso,
-                  child: ListTile(
-                    leading: Icon(Icons.qr_code_scanner_outlined),
-                    title: Text('Consultar seguimiento (CU28)'),
+                    title: Text('Traspasos'),
                   ),
                 ),
               const PopupMenuItem(

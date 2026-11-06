@@ -279,9 +279,9 @@ class _SeguimientoTraspasoPageState extends State<SeguimientoTraspasoPage> {
                   child: TextField(
                     controller: _codigoCtrl,
                     decoration: const InputDecoration(
-                      labelText: 'Código o ID de solicitud',
+                      labelText: 'Código de solicitud',
                       hintText: 'Ej. TRP-20261101-0001 o número',
-                      prefixIcon: Icon(Icons.qr_code_scanner),
+                      prefixIcon: Icon(Icons.receipt_long),
                       border: OutlineInputBorder(),
                       isDense: true,
                     ),
