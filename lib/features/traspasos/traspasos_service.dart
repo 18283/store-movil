@@ -69,4 +69,19 @@ class TraspasosService {
     final data = await _api.get('/traspasos/${Uri.encodeComponent(codigo.trim())}');
     return SolicitudTraspaso.fromJson(data as Map<String, dynamic>);
   }
+
+  /// Mensajes CU28: Listar todas las solicitudes de traspaso de la empresa.
+  /// Retorna un listado paginado o completo de solicitudes según la configuración del backend.
+  Future<List<SolicitudTraspaso>> listarTraspasos() async {
+    final data = await _api.get('/traspasos');
+    final List list;
+    if (data is List) {
+      list = data;
+    } else if (data is Map && data['items'] is List) {
+      list = data['items'] as List;
+    } else {
+      list = [];
+    }
+    return list.map((e) => SolicitudTraspaso.fromJson(e as Map<String, dynamic>)).toList();
+  }
 }
