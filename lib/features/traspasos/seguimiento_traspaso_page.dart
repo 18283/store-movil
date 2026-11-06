@@ -12,8 +12,9 @@ import 'traspasos_service.dart';
 /// Plataforma: Web y móvil.
 /// Módulo: Traspasos.
 /// Alcance: Consultar estado solicitado, aprobado, enviado, recibido o cancelado.
-/// Esta pantalla muestra inicialmente la lista completa de traspasos (como la versión web en Angular),
-/// y permite filtrar por código específico o ID numérico.
+///
+/// Comportamiento tipo-web en Angular: el buscador está siempre visible arriba
+/// y la lista se carga automáticamente al entrar.
 class SeguimientoTraspasoPage extends StatefulWidget {
   final TraspasosService service;
   final String? codigoInicial;
@@ -34,8 +35,8 @@ class _SeguimientoTraspasoPageState extends State<SeguimientoTraspasoPage> {
   String? _error;
   List<SolicitudTraspaso> _listaTraspasos = [];
   List<SolicitudTraspaso> _listaFiltrada = [];
-  bool _mostrandoFormulario = true; // true = formulario de búsqueda, false = lista de resultados
   SolicitudTraspaso? _solicitudSeleccionada;
+  bool _conErrorInicial = false;
 
   @override
   void initState() {
@@ -61,7 +62,7 @@ class _SeguimientoTraspasoPageState extends State<SeguimientoTraspasoPage> {
       _error = null;
       _listaTraspasos = [];
       _listaFiltrada = [];
-      _mostrandoFormulario = true;
+      _conErrorInicial = false;
     });
 
     try {
@@ -71,10 +72,10 @@ class _SeguimientoTraspasoPageState extends State<SeguimientoTraspasoPage> {
         _listaTraspasos = lista;
         _listaFiltrada = lista;
         _cargando = false;
-        // Si ya venimos con un código inicial, ya lo consultamos en el postframe callback
-        // Si no, mostramos la lista vacía o el mensaje inicial
+        // Si hay código inicial, consultar después de frame (ya lo hicimos en postFrameCallback)
+        // Si no, mostramos la lista con el buscador visible
         if (widget.codigoInicial == null || widget.codigoInicial!.trim().isEmpty) {
-          _mostrandoFormulario = _listaFiltrada.isNotEmpty ? false : true;
+          // Lista lista para mostrarse con buscador arriba
         }
       });
     } on ApiException catch (e) {
@@ -86,12 +87,14 @@ class _SeguimientoTraspasoPageState extends State<SeguimientoTraspasoPage> {
       setState(() {
         _error = mensajeError;
         _cargando = false;
+        _conErrorInicial = true;
       });
     } catch (_) {
       if (!mounted) return;
       setState(() {
         _error = 'Ocurrió un error al cargar la lista de solicitudes.';
         _cargando = false;
+        _conErrorInicial = true;
       });
     }
   }
@@ -116,7 +119,6 @@ class _SeguimientoTraspasoPageState extends State<SeguimientoTraspasoPage> {
       setState(() {
         _solicitudSeleccionada = res;
         _cargando = false;
-        _mostrandoFormulario = false;
         // Filtrar la lista para mostrar solo el encontrado
         _listaFiltrada = _listaTraspasos.where((s) => s.codigo == res.codigo).toList();
       });
@@ -125,7 +127,6 @@ class _SeguimientoTraspasoPageState extends State<SeguimientoTraspasoPage> {
       String mensajeError = e.message;
       if (e.codigo == 'SOLICITUD_NO_ENCONTRADA' || e.statusCode == 404) {
         mensajeError = 'No se encontró ninguna solicitud de traspaso con el código o ID "$codigo".';
-        // Agregar mensaje de "no encontrado" a la lista filtrada para efectos visuales
         _listaFiltrada = [];
       } else if (e.codigo == 'SIN_PERMISO' || e.statusCode == 403) {
         mensajeError = 'No tienes permisos para consultar esta solicitud (pertenece a otra sucursal o usuario).';
@@ -134,14 +135,16 @@ class _SeguimientoTraspasoPageState extends State<SeguimientoTraspasoPage> {
       setState(() {
         _error = mensajeError;
         _cargando = false;
-        _mostrandoFormulario = true;
+        _solicitudSeleccionada = null;
+        _listaFiltrada = _listaTraspasos; // restaurar lista completa
       });
     } catch (_) {
       if (!mounted) return;
       setState(() {
         _error = 'Ocurrió un error al consultar el seguimiento de la solicitud.';
         _cargando = false;
-        _mostrandoFormulario = true;
+        _solicitudSeleccionada = null;
+        _listaFiltrada = _listaTraspasos; // restaurar lista completa
       });
     }
   }
@@ -180,83 +183,108 @@ class _SeguimientoTraspasoPageState extends State<SeguimientoTraspasoPage> {
     final textTheme = theme.textTheme;
     final colorScheme = theme.colorScheme;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Seguimiento de traspaso (CU28)'),
-        actions: [
-          if (!_cargando && !_mostrandoFormulario)
-            IconButton(
-              icon: const Icon(Icons.list_alt_outlined),
-              tooltip: 'Ver lista completa',
-              onPressed: () {
-                setState(() {
-                  _mostrandoFormulario = true;
-                  _listaFiltrada = _listaTraspasos;
-                  _solicitudSeleccionada = null;
-                  _codigoCtrl.clear();
-                });
-              },
+    // Si aún estamos cargando al inicio y hubo error, mostrar estado de error
+    if (_cargando && _conErrorInicial && _listaTraspasos.isEmpty) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Seguimiento de traspaso (CU28)'),
+        ),
+        body: Center(
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: colorScheme.errorContainer.withValues(alpha: 0.5),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: colorScheme.error.withValues(alpha: 0.5)),
             ),
-        ],
-      ),
-      body: _buildBody(context, theme, textTheme, colorScheme),
-    );
-  }
-
-  Widget _buildBody(
-      BuildContext context,
-      ThemeData theme,
-      TextTheme textTheme,
-      ColorScheme colorScheme,
-      ) {
-    if (_cargando) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    if (_error != null) {
-      return Center(
-        child: Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: colorScheme.errorContainer.withValues(alpha: 0.5),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: colorScheme.error.withValues(alpha: 0.5)),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.error_outline, color: colorScheme.error),
-              const SizedBox(width: 12),
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 300),
-                child: Text(
-                  _error!,
-                  style: TextStyle(color: colorScheme.onErrorContainer),
-                  textAlign: TextAlign.center,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.error_outline, color: colorScheme.error),
+                const SizedBox(width: 12),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 350),
+                  child: Text(
+                    _error!,
+                    style: TextStyle(color: colorScheme.onErrorContainer),
+                    textAlign: TextAlign.center,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       );
     }
 
-    // Modo lista: mostrar todos los traspasos en un ListView
-    if (_mostrandoFormulario && _solicitudSeleccionada == null) {
-      return _buildListaTraspasos(theme, textTheme, colorScheme);
-    }
-
-    // Modo detalle: mostrar la solicitud específica encontrada
+    // Si hay una solicitud específica seleccionada, mostrar su detalle
     if (_solicitudSeleccionada != null) {
-      return _buildDetalleSolicitud(theme, textTheme, colorScheme);
+      return _buildConDetalle(theme, textTheme, colorScheme);
     }
 
-    // Fallback
-    return const Center(child: Text('Sin datos disponibles'));
+    // Modo normal: lista + buscador siempre visible
+    return _buildConListaYBusqueda(theme, textTheme, colorScheme);
   }
 
-  /// Builder de la lista de traspasos principal
-  Widget _buildListaTraspasos(ThemeData theme, TextTheme textTheme, ColorScheme colorScheme) {
+  /// Pantalla completa: AppBar + Buscador fijo arriba + Lista debajo
+  Widget _buildConListaYBusqueda(ThemeData theme, TextTheme textTheme, ColorScheme colorScheme) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Seguimiento de traspaso (CU28)'),
+        // Removido el botón "Ver lista completa" - la lista se muestra por defecto
+      ),
+      body: Column(
+        children: [
+          // ==========================================
+          // 1. BUSCADOR SEMPRE VISIBLE EN LA PARTE SUPERIOR
+          // ==========================================
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _codigoCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Código o ID de solicitud',
+                      hintText: 'Ej. TRP-20261101-0001 o número',
+                      prefixIcon: Icon(Icons.qr_code_scanner),
+                      border: OutlineInputBorder(),
+                      isDense: true,
+                    ),
+                    onSubmitted: (_) => _consultarEspecif(),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                FilledButton.icon(
+                  onPressed: _cargando ? null : () => _consultarEspecif(),
+                  icon: _cargando
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        )
+                      : const Icon(Icons.search),
+                  label: const Text('Consultar'),
+                  //disabledColor: Colors.grey,
+                ),
+              ],
+            ),
+          ),
+
+          // ==========================================
+          // 2. LISTA DE TRASPASSOS ABAJO DEL BUSCADOR
+          // ==========================================
+          Expanded(
+            child: _buildListaTraspasosWidget(theme, textTheme, colorScheme),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Listado de traspasos en tarjetas
+  Widget _buildListaTraspasosWidget(ThemeData theme, TextTheme textTheme, ColorScheme colorScheme) {
     final listaMostrar = _listaFiltrada.isNotEmpty ? _listaFiltrada : _listaTraspasos;
 
     if (listaMostrar.isEmpty) {
@@ -279,7 +307,7 @@ class _SeguimientoTraspasoPageState extends State<SeguimientoTraspasoPage> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Ingresá un código o ID para buscar, o esperá a que cargue la lista completa.',
+              'Ingresá un código o ID para buscar en la lista anterior.',
               style: textTheme.bodySmall?.copyWith(color: colorScheme.outline),
             ),
           ],
@@ -288,7 +316,7 @@ class _SeguimientoTraspasoPageState extends State<SeguimientoTraspasoPage> {
     }
 
     return ListView.builder(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
       itemCount: listaMostrar.length,
       itemBuilder: (context, index) {
         final s = listaMostrar[index];
@@ -314,7 +342,6 @@ class _SeguimientoTraspasoPageState extends State<SeguimientoTraspasoPage> {
             onTap: () {
               _consultarEspecif(s.codigo);
             },
-            // Subtítulo con origen/destino resumido
             subtitle: Text(
               'Origen: ${s.origen ?? '—'} | Destino: ${s.destino ?? '—'} | Cant: ${s.cantidad}',
               style: textTheme.bodySmall?.copyWith(color: colorScheme.outline),
@@ -325,105 +352,113 @@ class _SeguimientoTraspasoPageState extends State<SeguimientoTraspasoPage> {
     );
   }
 
-  /// Builder del detalle de una solicitud específica
-  Widget _buildDetalleSolicitud(ThemeData theme, TextTheme textTheme, ColorScheme colorScheme) {
+  /// Modo detalle: cuando se consulta un código específico
+  Widget _buildConDetalle(ThemeData theme, TextTheme textTheme, ColorScheme colorScheme) {
     final s = _solicitudSeleccionada!;
     final colorEst = _colorEstado(s.estado);
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
-      child: Card(
-        elevation: 2,
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Expanded(
-                    child: Text(
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Solicitud ${s.codigo}'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.arrow_back),
+            tooltip: 'Volver a la lista',
+            onPressed: () {
+              setState(() {
+                _solicitudSeleccionada = null;
+                _listaFiltrada = _listaTraspasos;
+                _codigoCtrl.clear();
+              });
+            },
+          ),
+        ],
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: Card(
+          elevation: 2,
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
                       'Solicitud ${s.codigo}',
                       style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
                     ),
-                  ),
-                  Chip(
-                    label: Text(
-                      s.estado,
-                      style: TextStyle(color: colorEst, fontWeight: FontWeight.bold),
-                    ),
-                    backgroundColor: colorEst.withValues(alpha: 0.15),
-                    side: BorderSide(color: colorEst.withValues(alpha: 0.5)),
-                  ),
-                ],
-              ),
-              const Divider(height: 24),
-              if (s.resumen != null && s.resumen!.isNotEmpty) ...[
-                Text(
-                  s.resumen!,
-                  style: textTheme.bodyMedium?.copyWith(fontStyle: FontStyle.italic),
-                ),
-                const SizedBox(height: 16),
-              ],
-              Text('Detalles de la prenda', style: textTheme.titleSmall?.copyWith(color: colorScheme.primary)),
-              const SizedBox(height: 8),
-              _filaInfo('Prenda', s.variante ?? s.producto ?? '—'),
-              if (s.sku != null) _filaInfo('SKU', s.sku!),
-              if (s.talla != null) _filaInfo('Talla', s.talla!),
-              if (s.color != null) _filaInfo('Color', s.color!),
-              _filaInfo('Cantidad', '${s.cantidad}'),
-              const Divider(height: 24),
-              Text('Ruta del traspaso', style: textTheme.titleSmall?.copyWith(color: colorScheme.primary)),
-              const SizedBox(height: 8),
-              _filaInfo('Sucursal de origen', '${s.origen ?? '—'} (${s.ciudadOrigen ?? '—'})'),
-              _filaInfo('Sucursal de destino', '${s.destino ?? '—'} (${s.ciudadDestino ?? '—'})'),
-              const Divider(height: 24),
-              Text('Información general', style: textTheme.titleSmall?.copyWith(color: colorScheme.primary)),
-              const SizedBox(height: 8),
-              if (s.solicitante != null) _filaInfo('Solicitante', '${s.solicitante} (${s.solicitanteRol ?? '—'})'),
-              if (s.fechaSolicitud != null) _filaInfo('Fecha de solicitud', s.fechaSolicitud!),
-              if (s.motivo != null && s.motivo!.isNotEmpty) _filaInfo('Motivo', s.motivo!),
-              const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.info_outline, size: 20, color: Colors.grey),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'La consulta es informativa: no modifica el inventario ni el estado de la solicitud en la base de datos (CU28).',
-                        style: textTheme.bodySmall?.copyWith(color: colorScheme.outline),
+                    Chip(
+                      label: Text(
+                        s.estado,
+                        style: TextStyle(color: colorEst, fontWeight: FontWeight.bold),
                       ),
+                      backgroundColor: colorEst.withValues(alpha: 0.15),
+                      side: BorderSide(color: colorEst.withValues(alpha: 0.5)),
                     ),
                   ],
                 ),
-              ),
-              const SizedBox(height: 24),
-              FilledButton.icon(
-                onPressed: () {
-                  // Volver al modo lista
-                  setState(() {
-                    _solicitudSeleccionada = null;
-                    _listaFiltrada = _listaTraspasos;
-                    _codigoCtrl.clear();
-                    _mostrandoFormulario = true;
-                  });
-                },
-                icon: const Icon(Icons.arrow_back),
-                label: const Text('Volver a la lista'),
-              ),
-              const SizedBox(height: 8),
-              OutlinedButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('Cerrar'),
-              ),
-            ],
+                const Divider(height: 24),
+                if (s.resumen != null && s.resumen!.isNotEmpty) ...[
+                  Text(
+                    s.resumen!,
+                    style: textTheme.bodyMedium?.copyWith(fontStyle: FontStyle.italic),
+                  ),
+                  const SizedBox(height: 16),
+                ],
+                Text('Detalles de la prenda', style: textTheme.titleSmall?.copyWith(color: colorScheme.primary)),
+                const SizedBox(height: 8),
+                _filaInfo('Prenda', s.variante ?? s.producto ?? '—'),
+                if (s.sku != null) _filaInfo('SKU', s.sku!),
+                if (s.talla != null) _filaInfo('Talla', s.talla!),
+                if (s.color != null) _filaInfo('Color', s.color!),
+                _filaInfo('Cantidad', '${s.cantidad}'),
+                const Divider(height: 24),
+                Text('Ruta del traspaso', style: textTheme.titleSmall?.copyWith(color: colorScheme.primary)),
+                const SizedBox(height: 8),
+                _filaInfo('Sucursal de origen', '${s.origen ?? '—'} (${s.ciudadOrigen ?? '—'})'),
+                _filaInfo('Sucursal de destino', '${s.destino ?? '—'} (${s.ciudadDestino ?? '—'})'),
+                const Divider(height: 24),
+                Text('Información general', style: textTheme.titleSmall?.copyWith(color: colorScheme.primary)),
+                const SizedBox(height: 8),
+                if (s.solicitante != null) _filaInfo('Solicitante', '${s.solicitante} (${s.solicitanteRol ?? '—'})'),
+                if (s.fechaSolicitud != null) _filaInfo('Fecha de solicitud', s.fechaSolicitud!),
+                if (s.motivo != null && s.motivo!.isNotEmpty) _filaInfo('Motivo', s.motivo!),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.info_outline, size: 20, color: Colors.grey),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'La consulta es informativa: no modifica el inventario ni el estado de la solicitud en la base de datos (CU28).',
+                          style: textTheme.bodySmall?.copyWith(color: colorScheme.outline),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+                FilledButton(
+                  onPressed: () {
+                    setState(() {
+                      _solicitudSeleccionada = null;
+                      _listaFiltrada = _listaTraspasos;
+                      _codigoCtrl.clear();
+                    });
+                  },
+                  child: const Text('Volver a la lista de traspasos'),
+                ),
+              ],
+            ),
           ),
         ),
       ),
