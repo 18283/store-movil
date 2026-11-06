@@ -111,26 +111,42 @@ class _SeguimientoTraspasoPageState extends State<SeguimientoTraspasoPage> {
     setState(() {
       _cargando = true;
       _error = null;
+      // Limpiamos la selección anterior antes de la nueva consulta
+      _solicitudSeleccionada = null;
+      _listaFiltrada = [];
     });
 
     try {
       final res = await widget.service.consultarSeguimiento(codigo);
       if (!mounted) return;
+
+      // 1. El resultado definitivo viene DEL SERVICIO, NO de la lista filtrada
+      //    Esto asegura que mostremos exactamente lo que el backend devolvió
       setState(() {
         _solicitudSeleccionada = res;
         _cargando = false;
-        // Filtrar la lista para mostrar solo el encontrado
-        _listaFiltrada = _listaTraspasos.where((s) => s.codigo == res.codigo).toList();
+      });
+
+      // 2. Filtrar la lista LOCAL solo para efectos de UI (mostrar "coincidencias" nearby)
+      //    Pero NO usamos esta lista para el detalle - usamos _solicitudSeleccionada
+      final codigoNormalizado = codigo.trim().toUpperCase();
+      final listaFiltrada = _listaTraspasos.where((s) {
+        final codigoLocalNormalizado = (s.codigo ?? '').trim().toUpperCase();
+        return codigoLocalNormalizado.contains(codigoNormalizado) ||
+            (s.producto ?? '').toUpperCase().contains(codigoNormalizado) ||
+            (s.resumen ?? '').toUpperCase().contains(codigoNormalizado);
+      }).toList();
+
+      setState(() {
+        _listaFiltrada = listaFiltrada;
       });
     } on ApiException catch (e) {
       if (!mounted) return;
       String mensajeError = e.message;
       if (e.codigo == 'SOLICITUD_NO_ENCONTRADA' || e.statusCode == 404) {
         mensajeError = 'No se encontró ninguna solicitud de traspaso con el código o ID "$codigo".';
-        _listaFiltrada = [];
       } else if (e.codigo == 'SIN_PERMISO' || e.statusCode == 403) {
         mensajeError = 'No tienes permisos para consultar esta solicitud (pertenece a otra sucursal o usuario).';
-        _listaFiltrada = [];
       }
       setState(() {
         _error = mensajeError;
