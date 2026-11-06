@@ -62,4 +62,11 @@ class TraspasosService {
     final data = await _api.post('/traspasos', body: body);
     return SolicitudTraspaso.fromJson(data as Map<String, dynamic>);
   }
+
+  /// CU28 — Consultar seguimiento de traspaso (código anterior: CU65).
+  /// Actores: Cliente, Encargado de sucursal.
+  Future<SolicitudTraspaso> consultarSeguimiento(String codigo) async {
+    final data = await _api.get('/traspasos/${Uri.encodeComponent(codigo.trim())}');
+    return SolicitudTraspaso.fromJson(data as Map<String, dynamic>);
+  }
 }

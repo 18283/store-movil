@@ -17,6 +17,7 @@ import '../cambios/cambios_service.dart';
 import '../cambios/mis_cambios_page.dart';
 import '../traspasos/solicitar_traspaso_page.dart';
 import '../traspasos/traspasos_service.dart';
+import '../traspasos/seguimiento_traspaso_page.dart';
 import '../offline/offline_catalog_page.dart';
 import '../reservas/mi_reserva_page.dart';
 import '../reservas/mis_reservas_page.dart';
@@ -33,6 +34,7 @@ enum _MenuCuenta {
   compras,
   cambios,
   traspasos,
+  consultarSeguimientoTraspaso,
   asistente,
   vestidorPrueba,
   catalogoOffline,
@@ -102,6 +104,13 @@ class _HomePageState extends State<HomePage> {
         Navigator.of(context).push(
           MaterialPageRoute(
             builder: (_) => SolicitarTraspasoPage(service: TraspasosService(auth.api)),
+          ),
+        );
+        break;
+      case _MenuCuenta.consultarSeguimientoTraspaso:
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => SeguimientoTraspasoPage(service: TraspasosService(auth.api)),
           ),
         );
         break;
@@ -224,6 +233,14 @@ class _HomePageState extends State<HomePage> {
                   child: ListTile(
                     leading: Icon(Icons.local_shipping_outlined),
                     title: Text('Solicitar traspaso'),
+                  ),
+                ),
+              if (rol == 'Cliente' || rol == 'EncargadoSucursal')
+                const PopupMenuItem(
+                  value: _MenuCuenta.consultarSeguimientoTraspaso,
+                  child: ListTile(
+                    leading: Icon(Icons.qr_code_scanner_outlined),
+                    title: Text('Consultar seguimiento (CU28)'),
                   ),
                 ),
               const PopupMenuItem(
