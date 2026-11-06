@@ -120,6 +120,24 @@ class _SeguimientoTraspasoPageState extends State<SeguimientoTraspasoPage> {
       final res = await widget.service.consultarSeguimiento(codigo);
       if (!mounted) return;
 
+      // 2. VALIDACIÓN CRÍTICA: Comparar código devuelto por backend vs código buscado
+      //    Si no coinciden exactamente (normalizados), es posible que el backend
+      //    haya devuelto un resultado diferente al esperado (bug del lado del servidor).
+      //    En ese caso, NO mostramos el detalle y mostramos un error al usuario.
+      final codigoNormalizado = codigo.trim().toUpperCase();
+      final resCodigoNormalizado = (res.codigo ?? '').trim().toUpperCase();
+      if (resCodigoNormalizado != codigoNormalizado) {
+        // El traspaso encontrado no coincide con el código buscado
+        setState(() {
+          _solicitudSeleccionada = null;
+          _cargando = false;
+          _error = 'El traspaso encontrado no coincide con el código buscado "$codigo". '
+              'Puede que el código no exista o haya un error en el backend. '
+              'Por favor, verifica el código e inténtalo de nuevo.';
+        });
+        return;
+      }
+
       // 1. El resultado definitivo viene DEL SERVICIO, NO de la lista filtrada
       //    Esto asegura que mostremos exactamente lo que el backend devolvió
       setState(() {
@@ -127,9 +145,8 @@ class _SeguimientoTraspasoPageState extends State<SeguimientoTraspasoPage> {
         _cargando = false;
       });
 
-      // 2. Filtrar la lista LOCAL solo para efectos de UI (mostrar "coincidencias" nearby)
+      // 3. Filtrar la lista LOCAL solo para efectos de UI (mostrar "coincidencias" nearby)
       //    Pero NO usamos esta lista para el detalle - usamos _solicitudSeleccionada
-      final codigoNormalizado = codigo.trim().toUpperCase();
       final listaFiltrada = _listaTraspasos.where((s) {
         final codigoLocalNormalizado = (s.codigo ?? '').trim().toUpperCase();
         return codigoLocalNormalizado.contains(codigoNormalizado) ||
