@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/auth/auth_service.dart';
+import '../../core/services/notificacion_service.dart';
 import '../account/account_page.dart';
 import '../carrito/carrito_page.dart';
 import '../carrito/carrito_service.dart';
@@ -19,6 +22,7 @@ import '../traspasos/solicitar_traspaso_page.dart';
 import '../traspasos/traspasos_service.dart';
 import '../traspasos/seguimiento_traspaso_page.dart';
 import '../offline/offline_catalog_page.dart';
+import '../notificaciones/notificaciones_page.dart';
 import '../reservas/mi_reserva_page.dart';
 import '../reservas/mis_reservas_page.dart';
 import '../reservas/reserva_bolsa_service.dart';
@@ -50,12 +54,36 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
+  Timer? _timerNotificaciones;
+
   @override
   void initState() {
     super.initState();
     // Carga el carrito una vez al entrar, para que el badge del ícono
     // ya muestre la cantidad real sin esperar a abrir "Mi carrito".
     context.read<CarritoService>().cargar().catchError((_) {});
+    // Carga las notificaciones al iniciar sesión y actualiza el badge
+    // cada 30 segundos para reflejar notificaciones nuevas (CU35).
+    _actualizarNotificaciones();
+    _timerNotificaciones = Timer.periodic(
+      const Duration(seconds: 30),
+      (_) => _actualizarNotificaciones(),
+    );
+  }
+
+  @override
+  void dispose() {
+    _timerNotificaciones?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _actualizarNotificaciones() async {
+    if (!mounted) return;
+    try {
+      await context.read<NotificacionService>().cargarNotificaciones();
+    } catch (_) {
+      // Silencio: el badge conserva el último valor conocido.
+    }
   }
 
   void _onMenu(_MenuCuenta opcion) {
@@ -196,11 +224,23 @@ class _HomePageState extends State<HomePage> {
         rol == 'Encargado';
     final cantidadCarrito = context.watch<CarritoService>().cantidadItems;
     final cantidadReserva = context.watch<ReservaBolsaService>().cantidad;
+    final noLeidas = context.watch<NotificacionService>().noLeidas;
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('FashionStore'),
         actions: [
+          IconButton(
+            icon: Badge(
+              label: Text(noLeidas > 99 ? '99+' : '$noLeidas'),
+              isLabelVisible: noLeidas > 0,
+              child: const Icon(Icons.notifications_outlined),
+            ),
+            tooltip: 'Notificaciones',
+            onPressed: () => Navigator.of(
+              context,
+            ).push(MaterialPageRoute(builder: (_) => const NotificacionesPage())),
+          ),
           IconButton(
             icon: Badge(
               label: Text('$cantidadCarrito'),

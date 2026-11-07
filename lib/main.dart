@@ -6,10 +6,12 @@ import 'package:provider/provider.dart';
 import 'core/app_keys.dart';
 import 'core/auth/auth_service.dart';
 import 'core/offline/push_service.dart';
+import 'core/services/notificacion_service.dart';
 import 'features/auth/login_page.dart';
 import 'features/carrito/carrito_service.dart';
 import 'features/home/home_page.dart';
 import 'features/reservas/reserva_bolsa_service.dart';
+import 'shared/notificacion_toast.dart';
 
 // CU14/CU15 — FCM necesita este handler top-level (fuera de cualquier clase)
 // para procesar push mientras la app está en segundo plano o cerrada. Como
@@ -38,6 +40,10 @@ class FashionStoreApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => AuthService()..cargarSesion()),
+        ChangeNotifierProxyProvider<AuthService, NotificacionService>(
+          create: (context) => NotificacionService(context.read<AuthService>().api),
+          update: (context, auth, previo) => previo ?? NotificacionService(auth.api),
+        ),
         // Se crea una sola vez con el ApiClient de AuthService (mismo token)
         // y sobrevive mientras dure la app, como el carrito real.
         ChangeNotifierProvider(create: (_) => ReservaBolsaService()),
@@ -53,6 +59,12 @@ class FashionStoreApp extends StatelessWidget {
         title: 'FashionStore',
         debugShowCheckedModeBanner: false,
         scaffoldMessengerKey: rootScaffoldMessengerKey,
+        builder: (context, child) {
+          return NotificacionToast(
+            service: context.read<NotificacionService>(),
+            child: child ?? const SizedBox.shrink(),
+          );
+        },
         theme: ThemeData(
           colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF2E7D32)),
           useMaterial3: true,

@@ -84,4 +84,16 @@ class TraspasosService {
     }
     return list.map((e) => SolicitudTraspaso.fromJson(e as Map<String, dynamic>)).toList();
   }
+
+  /// CU25 — Despachar solicitud de traspaso (origen).
+  Future<SolicitudTraspaso> despachar(int solicitudId) async {
+    final data = await _api.post('/traspasos/$solicitudId/despachar');
+    return SolicitudTraspaso.fromJson(data as Map<String, dynamic>);
+  }
+
+  /// CU26 — Confirmar recepción de solicitud de traspaso (destino).
+  Future<SolicitudTraspaso> recibir(int solicitudId) async {
+    final data = await _api.post('/traspasos/$solicitudId/recibir');
+    return SolicitudTraspaso.fromJson(data as Map<String, dynamic>);
+  }
 }
