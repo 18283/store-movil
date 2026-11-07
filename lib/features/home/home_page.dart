@@ -38,6 +38,7 @@ enum _MenuCuenta {
   compras,
   cambios,
   traspasosMenu,
+  centroNotificaciones,
   asistente,
   vestidorPrueba,
   catalogoOffline,
@@ -129,6 +130,11 @@ class _HomePageState extends State<HomePage> {
         break;
       case _MenuCuenta.traspasosMenu:
         _mostrarMenuTraspasos(auth);
+        break;
+      case _MenuCuenta.centroNotificaciones:
+        Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const NotificacionesPage()),
+        );
         break;
       case _MenuCuenta.asistente:
         Navigator.of(context).push(
@@ -236,7 +242,7 @@ class _HomePageState extends State<HomePage> {
               isLabelVisible: noLeidas > 0,
               child: const Icon(Icons.notifications_outlined),
             ),
-            tooltip: 'Notificaciones',
+            tooltip: 'Centro de notificaciones',
             onPressed: () => Navigator.of(
               context,
             ).push(MaterialPageRoute(builder: (_) => const NotificacionesPage())),
@@ -304,6 +310,14 @@ class _HomePageState extends State<HomePage> {
                     title: Text('Traspasos'),
                   ),
                 ),
+              // CU35 — Centro de Notificaciones: visible para todos los roles.
+              const PopupMenuItem(
+                value: _MenuCuenta.centroNotificaciones,
+                child: ListTile(
+                  leading: Icon(Icons.notifications_outlined),
+                  title: Text('Centro de notificaciones'),
+                ),
+              ),
               const PopupMenuItem(
                 value: _MenuCuenta.asistente,
                 child: ListTile(

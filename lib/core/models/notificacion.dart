@@ -5,6 +5,7 @@ class Notificacion {
   final String mensaje;
   final String tipo; // 'success' | 'info' | 'warning' | 'error'
   final bool leida;
+  final String? modulo;
   final String? codigoTraspaso;
   final DateTime fecha;
 
@@ -13,6 +14,7 @@ class Notificacion {
     required this.mensaje,
     this.tipo = 'info',
     this.leida = false,
+    this.modulo,
     this.codigoTraspaso,
     DateTime? fecha,
   }) : fecha = fecha ?? DateTime.now();
@@ -22,6 +24,7 @@ class Notificacion {
         mensaje: mensaje,
         tipo: tipo,
         leida: leida ?? this.leida,
+        modulo: modulo,
         codigoTraspaso: codigoTraspaso,
         fecha: fecha,
       );
@@ -32,6 +35,7 @@ class Notificacion {
       mensaje: _str(json, ['mensaje', 'message', 'titulo', 'contenido', 'texto', 'descripcion']) ?? 'Notificación',
       tipo: _str(json, ['tipo', 'type']) ?? 'info',
       leida: _bool(json, ['leida', 'leída', 'is_leida', 'leido', 'read']),
+      modulo: _str(json, ['modulo', 'module']),
       codigoTraspaso: _str(json, [
         'codigo_traspaso',
         'codigoTraspaso',
