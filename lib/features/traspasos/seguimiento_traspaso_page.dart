@@ -99,6 +99,7 @@ class _SeguimientoTraspasoPageState extends State<SeguimientoTraspasoPage> {
     }
   }
 
+    
   Future<void> _consultarEspecif([String? codigoParam]) async {
     final codigo = (codigoParam ?? _codigoCtrl.text).trim();
     if (codigo.isEmpty) {
@@ -108,78 +109,38 @@ class _SeguimientoTraspasoPageState extends State<SeguimientoTraspasoPage> {
       return;
     }
 
-    setState(() {
-      _cargando = true;
-      _error = null;
-      // Limpiamos la selección anterior antes de la nueva consulta
-      _solicitudSeleccionada = null;
-      _listaFiltrada = [];
-    });
+    // 🔥 BÚSQUEDA LOCAL: Filtrar la lista sin ir al backend
+    final codigoNormalizado = codigo.toUpperCase().replaceAll(' ', '').replaceAll('TRP-', '');
+    
+    final encontrados = _listaTraspasos.where((s) {
+      final codigoLocal = (s.codigo ?? '').toUpperCase().replaceAll(' ', '').replaceAll('TRP-', '');
+      return codigoLocal.contains(codigoNormalizado);
+    }).toList();
 
-    try {
-      final res = await widget.service.consultarSeguimiento(codigo);
-      if (!mounted) return;
-
-      // 2. VALIDACIÓN CRÍTICA: Comparar código devuelto por backend vs código buscado
-      //    Si no coinciden exactamente (normalizados), es posible que el backend
-      //    haya devuelto un resultado diferente al esperado (bug del lado del servidor).
-      //    En ese caso, NO mostramos el detalle y mostramos un error al usuario.
-      final codigoNormalizado = codigo.trim().toUpperCase();
-      final resCodigoNormalizado = (res.codigo ?? '').trim().toUpperCase();
-      if (resCodigoNormalizado != codigoNormalizado) {
-        // El traspaso encontrado no coincide con el código buscado
-        setState(() {
-          _solicitudSeleccionada = null;
-          _cargando = false;
-          _error = 'El traspaso encontrado no coincide con el código buscado "$codigo". '
-              'Puede que el código no exista o haya un error en el backend. '
-              'Por favor, verifica el código e inténtalo de nuevo.';
-        });
-        return;
-      }
-
-      // 1. El resultado definitivo viene DEL SERVICIO, NO de la lista filtrada
-      //    Esto asegura que mostremos exactamente lo que el backend devolvió
+    if (encontrados.isEmpty) {
       setState(() {
-        _solicitudSeleccionada = res;
-        _cargando = false;
+        _error = 'No se encontró ningún traspaso con el código "$codigo".';
+        _listaFiltrada = []; // Limpiamos la lista para mostrar el error
       });
-
-      // 3. Filtrar la lista LOCAL solo para efectos de UI (mostrar "coincidencias" nearby)
-      //    Pero NO usamos esta lista para el detalle - usamos _solicitudSeleccionada
-      final listaFiltrada = _listaTraspasos.where((s) {
-        final codigoLocalNormalizado = (s.codigo ?? '').trim().toUpperCase();
-        return codigoLocalNormalizado.contains(codigoNormalizado) ||
-            (s.producto ?? '').toUpperCase().contains(codigoNormalizado) ||
-            (s.resumen ?? '').toUpperCase().contains(codigoNormalizado);
-      }).toList();
-
-      setState(() {
-        _listaFiltrada = listaFiltrada;
-      });
-    } on ApiException catch (e) {
-      if (!mounted) return;
-      String mensajeError = e.message;
-      if (e.codigo == 'SOLICITUD_NO_ENCONTRADA' || e.statusCode == 404) {
-        mensajeError = 'No se encontró ninguna solicitud de traspaso con el código o ID "$codigo".';
-      } else if (e.codigo == 'SIN_PERMISO' || e.statusCode == 403) {
-        mensajeError = 'No tienes permisos para consultar esta solicitud (pertenece a otra sucursal o usuario).';
-      }
-      setState(() {
-        _error = mensajeError;
-        _cargando = false;
-        _solicitudSeleccionada = null;
-        _listaFiltrada = _listaTraspasos; // restaurar lista completa
-      });
-    } catch (_) {
-      if (!mounted) return;
-      setState(() {
-        _error = 'Ocurrió un error al consultar el seguimiento de la solicitud.';
-        _cargando = false;
-        _solicitudSeleccionada = null;
-        _listaFiltrada = _listaTraspasos; // restaurar lista completa
-      });
+      return;
     }
+
+    // Si hay exactamente 1, mostramos el detalle
+    if (encontrados.length == 1) {
+      setState(() {
+        _solicitudSeleccionada = encontrados.first;
+        _error = null;
+        _listaFiltrada = encontrados;
+      });
+      return;
+    }
+
+    // Si hay varios, mostramos la lista filtrada
+    setState(() {
+      _listaFiltrada = encontrados;
+      _error = null;
+      _solicitudSeleccionada = null;
+    });
   }
 
   Color _colorEstado(String estado) {
